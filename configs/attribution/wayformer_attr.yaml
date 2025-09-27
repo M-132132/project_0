@@ -1,0 +1,42 @@
+# Wayformer模型归因配置
+defaults:
+  - traj_attr_base
+  - /method: wayformer
+  - _self_
+
+# 模型设置
+model_name: "wayformer"
+ckpt_path: "TrajAttr_ckpt/wayformer_train/best_model.ckpt"
+
+# Wayformer特定归因设置
+attribution:
+  enable: true
+  methods: ["IntegratedGradients", "Dirichlet", "Saliency", "DeepLift"]
+  batch_limit: 12
+  distance_type: "min_ade"
+  
+  # Wayformer特定分析
+  analyze_cross_attention: true
+  analyze_perceiver_queries: true
+  analyze_waypoint_influence: true
+  
+# 可视化设置
+visualization:
+  enable: true
+  plot_types: ["trajectory", "map", "importance", "temporal", "attention"]
+  
+  # Wayformer特定可视化
+  plot_attention_patterns: true
+  plot_query_attribution: true
+  plot_waypoint_attribution: true
+  
+# 分析设置
+analysis:
+  compute_feature_importance: true
+  compute_temporal_importance: true
+  compute_agent_importance: true
+  
+  # Wayformer特定分析
+  analyze_attention_mechanisms: true
+  analyze_query_importance: true
+  compute_waypoint_contribution: true

@@ -1,0 +1,7 @@
+# Default configuration for trajectory visualization.
+# Relative paths are resolved against the project root (one level above this file).
+database_path: dataset_traj/scn_split_val
+prediction_path: exps_scripts/unitraj_train_eval/predictions_autobot_world_coords.json
+max_prediction_modes: 1
+min_prediction_probability: 0.05
+scenario_index: null  # Set to an integer to render a single scenario; leave null for all.
