@@ -101,4 +101,3 @@ cmd_split_val = [
 print("执行命令：", " ".join(cmd_split_val))
 subprocess.run(cmd_split_val, text=True, encoding="utf-8", errors="ignore")
 
-print(" 完成 ，数据集在data文件夹 ")
