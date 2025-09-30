@@ -29,3 +29,4 @@ weights/
 .claudeignore/
 
 README.py
+exps_scripts/exp_trajattr/analyze_attr_results.py
