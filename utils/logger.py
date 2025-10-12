@@ -47,7 +47,7 @@ class Logger:
                     pass
                     # result[key] = self._omegaconf_to_dict(value)
                 else:
-                    result[key] = value
+                       result[key] = value
             return result
         else:
             return cfg

@@ -9,6 +9,13 @@ import sys
 import torch
 import numpy as np
 from typing import Dict, List, Tuple, Any, Optional, Union
+import re
+
+try:
+    from omegaconf import DictConfig, OmegaConf
+except ImportError:  # pragma: no cover
+    DictConfig = ()  # type: ignore
+    OmegaConf = None  # type: ignore
 from collections import defaultdict
 import utils_data.utils_save as utils_save
 import utils_data.IO as IO
@@ -54,9 +61,16 @@ class TrajAttrBase:
         self._setup_model_info(config)
         
         # 创建模型适配器
-        self.model_adapter = ModelAdapterFactory.create_adapter(
-            model, config.get('model_name')
-        )
+        # 初始化模型名称为None
+        model_name = None
+        # 检查config对象是否有method属性，如果有则获取method中的model_name
+        if hasattr(config, 'method'):
+            model_name = config.method.get('model_name')
+        # 如果model_name为空（即之前未获取到值），则尝试从config中直接获取model_name
+        if not model_name:
+            model_name = config.get('model_name')
+        # 使用ModelAdapterFactory创建模型适配器，传入model和model_name
+        self.model_adapter = ModelAdapterFactory.create_adapter(model, model_name)
         
     def _setup_save_paths(self, save_paths=None):
         """设置保存路径"""
@@ -82,7 +96,10 @@ class TrajAttrBase:
     def _setup_model_info(self, config):
         """设置模型信息"""
         # 支持DictConfig和普通dict两种格式
-        self.model_name = config.get('model_name', 'unknown')
+        if hasattr(config, 'method'):
+            self.model_name = config.method.get('model_name', config.get('model_name', 'unknown'))
+        else:
+            self.model_name = config.get('model_name', 'unknown')
         self.future_len = config.get('future_len', 60)
         self.past_len = config.get('past_len', 21)
         
@@ -146,16 +163,8 @@ class TrajAttrBase:
                              attribution_inputs[key].requires_grad)
         
         # 根据方法计算归因
-        if method == 'Dirichlet':
-            from ..methods.dirichlet_attr import DirichletAttribution
-            # 从配置中提取Dirichlet特定参数
-            method_config = self.config.get('dirichlet_config', {}).copy()
-            method_config.update(kwargs)  # kwargs覆盖配置文件参数
-            attr_calculator = DirichletAttribution(self, **method_config)
-            attributions = attr_calculator.compute_attribution(
-                attribution_inputs, static_inputs, input_tensors)
         
-        elif method == 'GuidedIG' or method == 'Guided-IG':
+        if method == 'GuidedIG' or method == 'Guided-IG':
             from ..methods.guided_ig_attr import GuidedIGAttribution
             # 从配置中提取GuidedIG特定参数
             method_config = self.config.get('guided_ig_config', {}).copy()
@@ -168,13 +177,51 @@ class TrajAttrBase:
             # 使用Captum方法
             from ..methods.captum_attr import CaptumAttribution
             # 从配置中提取Captum特定参数
-            method_config = self.config.get('captum_config', {}).copy()
+            method_config = self._get_captum_method_config(method)
             method_config.update(kwargs)  # kwargs覆盖配置文件参数
-            attr_calculator = CaptumAttribution(self, method, **method_config)
+            # 检查配置中是否有attribution属性，如果有则从中获取distance_type，否则直接从config中获取
+            # 默认值为'min_ade'
+            if hasattr(self.config, 'attribution'):
+                distance_type = self.config.attribution.get('distance_type', 'min_ade')
+            else:
+                distance_type = self.config.get('distance_type', 'min_ade')
+            # 创建CaptumAttribution实例，传入self、method、distance_type和method_config
+            attr_calculator = CaptumAttribution(
+                self,
+                method,
+                distance_type=distance_type,
+                **method_config
+            )
+            # 计算归因，传入attribution_inputs、static_inputs和input_tensors
             attributions = attr_calculator.compute_attribution(
                 attribution_inputs, static_inputs, input_tensors)
-            
+
         return attributions
+
+    def _get_captum_method_config(self, method_name: str) -> Dict[str, Any]:
+        """从配置中提取某个Captum方法的专属参数"""
+        captum_cfg = self.config.get('captum_config', {})
+
+        if isinstance(captum_cfg, DictConfig) and OmegaConf is not None:
+            captum_cfg = OmegaConf.to_container(captum_cfg, resolve=True)
+
+        if not isinstance(captum_cfg, dict):
+            return {}
+
+        method_key = self._normalize_method_key(method_name)
+
+        if method_key in captum_cfg and isinstance(captum_cfg[method_key], dict):
+            return captum_cfg[method_key].copy()
+
+        if method_name in captum_cfg and isinstance(captum_cfg[method_name], dict):
+            return captum_cfg[method_name].copy()
+
+        # 回退：仅保留非字典类型的通用参数
+        return {k: v for k, v in captum_cfg.items() if not isinstance(v, dict)}
+
+    def _normalize_method_key(self, name: str) -> str:
+        """将方法名转换为配置使用的snake_case键"""
+        return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
     
     def save_attribution_results(self, attributions: Dict, batch: Dict, 
                                  method: str, metadata: Optional[Dict] = None):
@@ -194,13 +241,30 @@ class TrajAttrBase:
         np_save_dir = self.attr_save_dir
         
         batch_size = list(attributions.values())[0].size(0)
-        
+        batch_id = metadata.get('batch_id') if metadata else None
+        scenario_ids = metadata.get('scenario_ids', []) if metadata else []
+        file_prefixes = [] if metadata is None else metadata.setdefault('file_prefixes', [None] * batch_size)
+
         for batch_idx in range(batch_size):
-            # 生成保存名称
-            save_name = f"batch_{batch_idx}_{method}"
-            if metadata and 'scene_id' in metadata:
-                save_name = f"scene_{metadata['scene_id'][batch_idx]}_{method}"
-                
+            if metadata is not None:
+                prefix = file_prefixes[batch_idx]
+            else:
+                prefix = None
+
+            if not prefix:
+                if batch_idx < len(scenario_ids):
+                    prefix = f"scene_{scenario_ids[batch_idx]}"
+                else:
+                    base = batch_id if batch_id is not None else batch_idx
+                    prefix = f"batch_{base}"
+                    if batch_size > 1:
+                        prefix += f"_{batch_idx}"
+
+                if metadata is not None:
+                    file_prefixes[batch_idx] = prefix
+
+            save_name = f"{prefix}_{method}"
+
             # 保存numpy数组
             for input_name, attr_values in attributions.items():
                 attr_np = utils_save.from_tensor_to_np(attr_values[batch_idx])

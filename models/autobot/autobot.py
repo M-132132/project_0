@@ -410,33 +410,33 @@ class AutoBotEgo(BaseModel):
         context = context.view(-1, B * self.c, self.d_k)
         
         # AutoBot-Ego解码过程
-        out_seq = self.Q.repeat(1, B, 1, 1).view(self.T, B * self.c, -1)
-        time_masks = self.generate_decoder_mask(seq_len=self.T, device=ego_in.device)
+        out_seq = self.Q.repeat(1, B, 1, 1).view(self.T, B * self.c, -1)  # 初始化输出序列
+        time_masks = self.generate_decoder_mask(seq_len=self.T, device=ego_in.device)  # 生成时间掩码
         for d in range(self.L_dec):
             # 地图注意力处理
             ego_dec_emb_map = self.map_attn_layers(query=out_seq, key=map_features, value=map_features,
                                                    key_padding_mask=road_segs_masks)[0]
-            out_seq = out_seq + ego_dec_emb_map
+            out_seq = out_seq + ego_dec_emb_map  # 残差连接
             # 解码器处理
             out_seq = self.tx_decoder[d](out_seq, context, tgt_mask=time_masks, memory_key_padding_mask=env_masks)
         # 生成输出分布
         out_dists = self.output_model(out_seq).reshape(self.T, B, self.c, -1).permute(2, 0, 1, 3)
 
         # 模式概率预测
-        mode_params_emb = self.P.repeat(1, B, 1)
+        mode_params_emb = self.P.repeat(1, B, 1)  # 重复模式参数
         mode_params_emb = self.prob_decoder(query=mode_params_emb, key=ego_soctemp_emb, value=ego_soctemp_emb)[0]
 
         # 地图注意力处理模式参数
         mode_params_emb = self.mode_map_attn(query=mode_params_emb, key=orig_map_features, value=orig_map_features,
-                                             key_padding_mask=orig_road_segs_masks)[0] + mode_params_emb
+                                             key_padding_mask=orig_road_segs_masks)[0] + mode_params_emb  # 残差连接
         # 计算模式概率
         mode_probs = F.softmax(self.prob_predictor(mode_params_emb).squeeze(-1), dim=0).transpose(0, 1)
 
         # 准备输出字典
         output = {}
-        output['predicted_probability'] = mode_probs  # [B, c]
+        output['predicted_probability'] = mode_probs  # [B, c] 存储模式概率
         # 调整输出形状以便并行化处理
-        output['predicted_trajectory'] = out_dists.permute(2, 0, 1, 3)  # [c, T, B, 5] -> [B, c, T, 5]
+        output['predicted_trajectory'] = out_dists.permute(2, 0, 1, 3)  # [c, T, B, 5] -> [B, c, T, 5] 存储预测轨迹
         return output
 
     def forward(self, batch):

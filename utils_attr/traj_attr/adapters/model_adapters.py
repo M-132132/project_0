@@ -23,10 +23,11 @@ class BaseModelAdapter(ABC):
             model: 模型实例
             model_name: 模型名称
         """
-        self.model = model
-        self.model_name = model_name or self.__class__.__name__
-        self.device = next(model.parameters()).device
-        self.distance_metrics = DistanceMetrics()
+        # 初始化模型相关属性
+        self.model = model  # 传入的模型实例
+        self.model_name = model_name or self.__class__.__name__  # 设置模型名称，如果未提供则使用类名
+        self.device = next(model.parameters()).device  # 获取模型所在的设备(CPU/GPU)
+        self.distance_metrics = DistanceMetrics()  # 初始化距离度量工具类
     
     @abstractmethod
     def get_attribution_inputs(self, batch: Dict) -> Dict[str, torch.Tensor]:
@@ -188,7 +189,6 @@ class AutoBotAdapter(BaseModelAdapter):
         
         # 掩码和索引信息
         for key in ['obj_trajs_mask', 'track_index_to_predict', 'map_polylines_mask']:
-            if key in input_dict:
                 inputs[key] = input_dict[key]
         
         # 真实轨迹信息
@@ -370,7 +370,7 @@ class ModelAdapterFactory:
         # 自动检测模型类型
         if model_name is None:
             model_class_name = model.__class__.__name__.lower()
-            
+
             # 尝试匹配已知的模型类型
             for known_type in cls._adapters.keys():
                 if known_type in model_class_name:
@@ -387,6 +387,7 @@ class ModelAdapterFactory:
             raise ValueError(f"不支持的模型类型: {model_name}. "
                            f"支持的类型: {list(cls._adapters.keys())}")
         
+        # 从适配器字典中获取指定模型名称对应的适配器类
         adapter_class = cls._adapters[model_name]
         return adapter_class(model, model_name)
     

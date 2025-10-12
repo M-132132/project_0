@@ -1,7 +1,20 @@
-# Default configuration for trajectory visualization.
-# Relative paths are resolved against the project root (one level above this file).
-database_path: dataset_traj/scn_split_val
-prediction_path: exps_scripts/unitraj_train_eval/evaluation_output/predictions_autobot_world_coords.json
+# MetaDrive可视化默认配置文件
+
+# 数据路径配置
+database_path: "dataset_traj/scn_split_val"
+prediction_path: "exps_scripts/unitraj_train_eval/evaluation_output/predictions_autobot_world_coords.json"
+
+# 场景选择
+scenario_index: null  # null表示显示所有场景，或指定整数索引
+
+# 预测轨迹配置
 max_prediction_modes: 1
 min_prediction_probability: 0.05
-scenario_index: null  # Set to an integer to render a single scenario; leave null for all.
+
+# 归因可视化配置
+attribution:
+  enabled: true
+  numpy_dir: "exps_res/res_trajattr/autobot_nuscenes/attributions/numpy"
+  method: "IntegratedGradients"
+  opacity: 0.8
+  threshold: 0.005

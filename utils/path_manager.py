@@ -75,6 +75,9 @@ class PathManager:
         if path_str.startswith('./cache') or path_str == './cache':
             return str(self.get_root_path('cache'))
         elif path_str.startswith('weights/'):
+
+
+
             return str(self.get_root_path(path_str))
         elif path_str.startswith('data_samples/'):
             return str(self.get_root_path(path_str))
@@ -91,31 +94,44 @@ class PathManager:
             return str(self.get_root_path(path_str))
     
     def resolve_config_paths(self, config_dict):
-        """??????????????"""
-        if isinstance(config_dict, (dict, DictConfig)):
-            for key in list(config_dict.keys()):
-                value = config_dict[key]
+
+# """
+    # 递归解析配置字典中的路径，将相对路径转换为绝对路径
+    #
+    # 参数:
+    #     config_dict: 需要解析路径的配置字典或列表
+    #
+    # 处理逻辑:
+    #     1. 如果是字典类型，检查每个键是否以'_path'或'_dir'结尾，或者是特定路径键
+    #     2. 如果是字符串类型的值，直接解析路径
+    #     3. 如果是列表或字典类型的值，递归处理
+    #     4. 如果是列表类型，检查每个字符串项是否包含路径分隔符
+        if isinstance(config_dict, (dict, DictConfig)):  # 处理字典类型
+            for key in list(config_dict.keys()):  # 遍历字典键
+                value = config_dict[key]  # 获取当前键的值
+            # 检查键是否表示路径或目录
                 if key.endswith('_path') or key.endswith('_dir') or key in ['cache_path', 'ckpt_path']:
-                    if isinstance(value, str):
+                    if isinstance(value, str):  # 如果值是字符串，直接解析路径
                         config_dict[key] = self.resolve_path(value)
-                    elif isinstance(value, (list, ListConfig)):
-                        for idx in range(len(value)):
+                    elif isinstance(value, (list, ListConfig)):  # 如果值是列表类型
+                        for idx in range(len(value)):  # 遍历列表项
                             item = value[idx]
-                            if isinstance(item, str):
+                            if isinstance(item, str):  # 如果列表项是字符串，解析路径
                                 value[idx] = self.resolve_path(item)
-                            elif isinstance(item, (dict, DictConfig, list, ListConfig)):
+                            elif isinstance(item, (dict, DictConfig, list, ListConfig)):  # 如果是复杂类型，递归处理
                                 self.resolve_config_paths(item)
                         config_dict[key] = value
-                    elif isinstance(value, (dict, DictConfig)):
+                    elif isinstance(value, (dict, DictConfig)):  # 如果值是字典类型，递归处理
                         self.resolve_config_paths(value)
-                elif isinstance(value, (dict, DictConfig, list, ListConfig)):
+                elif isinstance(value, (dict, DictConfig, list, ListConfig)):  # 处理其他复杂类型的值
                     self.resolve_config_paths(value)
-        elif isinstance(config_dict, (list, ListConfig)):
-            for idx in range(len(config_dict)):
+        elif isinstance(config_dict, (list, ListConfig)):  # 处理列表类型
+            for idx in range(len(config_dict)):  # 遍历列表项
                 item = config_dict[idx]
+            # 检查字符串项是否包含路径分隔符
                 if isinstance(item, str) and ('/' in item or '\\' in item):
-                    config_dict[idx] = self.resolve_path(item)
-                elif isinstance(item, (dict, DictConfig, list, ListConfig)):
+                    config_dict[idx] = self.resolve_path(item)  # 解析路径
+                elif isinstance(item, (dict, DictConfig, list, ListConfig)):  # 如果是复杂类型，递归处理
                     self.resolve_config_paths(item)
 # 创建全局路径管理器实例
 path_manager = PathManager()

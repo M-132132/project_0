@@ -1,17 +1,15 @@
 # 基础轨迹预测归因配置
 defaults:
   - method: autobot
-  - attribution/dirichlet
-  - attribution/captum_methods
+  - attribution: captum_methods
   - _self_
 
 # 实验基础设置
 exp_name: "traj_attr_exp"
 # 如果在仓库根目录运行脚本：
-ckpt_path: "D:/Autonomous-Driving/TrajAttrPub/weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
+ckpt_path: "weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
 
-#ckpt_path: "/media/shi/Code/PycharmProjects/TrajAttr/weights/TrajAttr_ckpt/autobot_train/best_model.ckpt" # checkpoint path, used for evaluation
-model_name: "autobot"  # autobot, wayformer, mtr, smart
+model_name: "${method.model_name}"
 dataset_name: "nuscenes"
 
 # 实验设置
@@ -21,10 +19,10 @@ devices: [0]
 
 # 数据相关
 load_num_workers: 0 # number of workers for loading data
-train_data_path: [ "data_samples/nuscenes" ] # list of paths to the training data
-val_data_path: [ "data_samples/nuscenes" ] # list of paths to the validation data
-cache_path: "D:/Autonomous-Driving/TrajAttrPubTrajAttr/cache"
-max_data_num: [ null ] # maximum number of data for each training dataset, null means all data
+train_data_path: [ "dataset_traj/scn_split_train" ] # list of paths to the training data
+val_data_path: [ "dataset_traj/scn_split_val" ] # list of paths to the validation data
+cache_path: "cache/traj_attr"
+max_data_num: [ 12 ] # maximum number of data for each training dataset, null means all data
 starting_frame: [ 0 ] # history trajectory starts at this frame for each training dataset
 past_len: 21 # history trajectory length, 2.1s
 future_len: 60 # future trajectory length, 6s
@@ -40,39 +38,15 @@ store_data_in_memory: False # store data in memory
 
 # 归因设置
 attribution:
-  enable: true
-  methods: ["IntegratedGradients", "Dirichlet", "Saliency"]
-  batch_limit: 10  # 限制计算归因的批次数
+  methods: ["IntegratedGradients", "Saliency"]
+  batch_limit: 12  # 限制计算归因的批次数
   distance_type: "min_ade"  # 主要距离度量类型
   save_raw_attributions: true  # 保存原始归因值
-  compute_statistics: true     # 计算统计信息
-  
+
 # 保存配置
 save_config:
   base_dir: "exps_res/res_trajattr"
   create_timestamp_dir: false
-  save_formats: ["numpy", "json", "png"]
-  compress_numpy: true
-  precision: "float32"
-  max_file_size_mb: 100
-  
-# 可视化配置
-visualization:
-  enable: true
-  plot_types: ["trajectory", "map", "importance", "temporal"]
-  color_scheme: "viridis"
-  figure_size: [12, 8]
-  dpi: 150
-  font_size: 12
-  save_formats: ["png", "pdf"]
-  
-# 分析配置
-analysis:
-  compute_feature_importance: true
-  compute_temporal_importance: true
-  compute_agent_importance: true
-  generate_summary_statistics: true
-  create_comparison_plots: true
 
 # Hydra配置
 hydra:

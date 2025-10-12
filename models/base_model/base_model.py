@@ -13,16 +13,22 @@ class BaseModel(nn.Module):
         super().__init__()
         self.config = config
         self.pred_dicts = []
-        
+
         if config.get('eval_nuscenes', False):
             self.init_nuscenes()
     
     def init_nuscenes(self):
+    # 初始化NuScenes数据集和预测配置
+    # 当配置中设置了eval_nuscenes为True时，此方法会被调用
+
         if self.config.get('eval_nuscenes', False):
+        # 导入必要的NuScenes库
             from nuscenes import NuScenes
             from nuscenes.eval.prediction.config import PredictionConfig
             from nuscenes.prediction import PredictHelper
+        # 解析数据集根目录路径
             dataroot = path_manager.resolve_path(self.config['nuscenes_dataroot'])
+        # 初始化NuScenes数据集对象，使用v1.0-trainval版本
             nusc = NuScenes(version='v1.0-trainval', dataroot=dataroot)
             
             # Prediction helper and configs:
@@ -45,99 +51,120 @@ class BaseModel(nn.Module):
         raise NotImplementedError
     
     def compute_official_evaluation(self, batch_dict, prediction):
+        """
+        计算官方评估结果的方法，支持Waymo、nuScenes和Argoverse2三种数据集的评估
+        参数:
+            batch_dict: 包含批次数据的字典
+            prediction: 包含预测结果的字典
+        返回:
+            无返回值，结果会存储在self.pred_dicts中
+        """
         if self.config.get('eval_waymo', False):
+        # Waymo数据集评估处理
             input_dict = batch_dict['input_dict']
-            pred_scores = prediction['predicted_probability']
-            pred_trajs = prediction['predicted_trajectory']
+            pred_scores = prediction['predicted_probability']  # 预测得分
+            pred_trajs = prediction['predicted_trajectory']    # 预测轨迹
             center_objects_world = input_dict['center_objects_world'].type_as(pred_trajs)
             num_center_objects, num_modes, num_timestamps, num_feat = pred_trajs.shape
             
+        # 对预测轨迹进行Z轴旋转，并调整到世界坐标系
             pred_trajs_world = common_utils.rotate_points_along_z_tensor(
                 points=pred_trajs.reshape(num_center_objects, num_modes * num_timestamps, num_feat),
                 angle=center_objects_world[:, 6].reshape(num_center_objects)
             ).reshape(num_center_objects, num_modes, num_timestamps, num_feat)
+        # 调整轨迹位置，添加中心物体位置和地图中心偏移
             pred_trajs_world[:, :, :, 0:2] += center_objects_world[:, None, None, 0:2] + input_dict['map_center'][:,
                                                                                          None, None, 0:2]
             
-            pred_dict_list = []
+            pred_dict_list = []  # 存储预测结果的列表
             
+        # 遍历批次中的每个样本
             for bs_idx in range(batch_dict['batch_size']):
                 single_pred_dict = {
-                    'scenario_id': input_dict['scenario_id'][bs_idx],
-                    'pred_trajs': pred_trajs_world[bs_idx, :, :, 0:2].cpu().numpy(),
-                    'pred_scores': pred_scores[bs_idx, :].cpu().numpy(),
-                    'object_id': input_dict['center_objects_id'][bs_idx],
-                    'object_type': input_dict['center_objects_type'][bs_idx],
-                    'gt_trajs': input_dict['center_gt_trajs_src'][bs_idx].cpu().numpy(),
-                    'track_index_to_predict': input_dict['track_index_to_predict'][bs_idx].cpu().numpy()
+                    'scenario_id': input_dict['scenario_id'][bs_idx],  # 场景ID
+                    'pred_trajs': pred_trajs_world[bs_idx, :, :, 0:2].cpu().numpy(),  # 预测轨迹
+                    'pred_scores': pred_scores[bs_idx, :].cpu().numpy(),  # 预测得分
+                    'object_id': input_dict['center_objects_id'][bs_idx],  # 物体ID
+                    'object_type': input_dict['center_objects_type'][bs_idx],  # 物体类型
+                    'gt_trajs': input_dict['center_gt_trajs_src'][bs_idx].cpu().numpy(),  # 真实轨迹
+                    'track_index_to_predict': input_dict['track_index_to_predict'][bs_idx].cpu().numpy()  # 预测的轨迹索引
                 }
                 pred_dict_list.append(single_pred_dict)
             
-            assert len(pred_dict_list) == batch_dict['batch_size']
-            self.pred_dicts += pred_dict_list
+            assert len(pred_dict_list) == batch_dict['batch_size']  # 确保预测数量与批次大小一致
+            self.pred_dicts += pred_dict_list  # 将预测结果添加到总预测字典中
         
         elif self.config.get('eval_nuscenes', False):
+        # nuScenes数据集评估处理
             from nuscenes.eval.prediction.data_classes import Prediction
             input_dict = batch_dict['input_dict']
-            pred_scores = prediction['predicted_probability']
-            pred_trajs = prediction['predicted_trajectory']
+            pred_scores = prediction['predicted_probability']  # 预测得分
+            pred_trajs = prediction['predicted_trajectory']    # 预测轨迹
             center_objects_world = input_dict['center_objects_world'].type_as(pred_trajs)
             
             num_center_objects, num_modes, num_timestamps, num_feat = pred_trajs.shape
             
+        # 对预测轨迹进行Z轴旋转，并调整到世界坐标系
             pred_trajs_world = common_utils.rotate_points_along_z_tensor(
                 points=pred_trajs.reshape(num_center_objects, num_modes * num_timestamps, num_feat),
                 angle=center_objects_world[:, 6].reshape(num_center_objects)
             ).reshape(num_center_objects, num_modes, num_timestamps, num_feat)
+        # 调整轨迹位置，添加中心物体位置和地图中心偏移
             pred_trajs_world[:, :, :, 0:2] += center_objects_world[:, None, None, 0:2] + input_dict['map_center'][:,
                                                                                          None, None, 0:2]
-            pred_dict_list = []
+            pred_dict_list = []  # 存储预测结果的列表
             
+        # 遍历批次中的每个样本
             for bs_idx in range(batch_dict['batch_size']):
                 single_pred_dict = {
-                    'instance': input_dict['scenario_id'][bs_idx].split('_')[1],
-                    'sample': input_dict['scenario_id'][bs_idx].split('_')[2],
-                    'prediction': pred_trajs_world[bs_idx, :, 4::5, 0:2].cpu().numpy(),
-                    'probabilities': pred_scores[bs_idx, :].cpu().numpy(),
+                    'instance': input_dict['scenario_id'][bs_idx].split('_')[1],  # 实例ID
+                    'sample': input_dict['scenario_id'][bs_idx].split('_')[2],  # 样本ID
+                    'prediction': pred_trajs_world[bs_idx, :, 4::5, 0:2].cpu().numpy(),  # 预测轨迹（每隔4个时间步取一个）
+                    'probabilities': pred_scores[bs_idx, :].cpu().numpy(),  # 预测概率
                 }
                 
+            # 将预测结果序列化并添加到列表中
                 pred_dict_list.append(
                     Prediction(instance=single_pred_dict["instance"], sample=single_pred_dict["sample"],
                                prediction=single_pred_dict["prediction"],
                                probabilities=single_pred_dict["probabilities"]).serialize())
             
-            self.pred_dicts += pred_dict_list
+            self.pred_dicts += pred_dict_list  # 将预测结果添加到总预测字典中
         
         elif self.config.get('eval_argoverse2', False):
+        # Argoverse2数据集评估处理
             input_dict = batch_dict['input_dict']
-            pred_scores = prediction['predicted_probability']
-            pred_trajs = prediction['predicted_trajectory']
+            pred_scores = prediction['predicted_probability']  # 预测得分
+            pred_trajs = prediction['predicted_trajectory']    # 预测轨迹
             center_objects_world = input_dict['center_objects_world'].type_as(pred_trajs)
             num_center_objects, num_modes, num_timestamps, num_feat = pred_trajs.shape
             
+        # 对预测轨迹进行Z轴旋转，并调整到世界坐标系
             pred_trajs_world = common_utils.rotate_points_along_z_tensor(
                 points=pred_trajs.reshape(num_center_objects, num_modes * num_timestamps, num_feat),
                 angle=center_objects_world[:, 6].reshape(num_center_objects)
             ).reshape(num_center_objects, num_modes, num_timestamps, num_feat)
+        # 调整轨迹位置，添加中心物体位置和地图中心偏移
             pred_trajs_world[:, :, :, 0:2] += center_objects_world[:, None, None, 0:2] + input_dict['map_center'][:,
                                                                                          None, None, 0:2]
             
-            pred_dict_list = []
+            pred_dict_list = []  # 存储预测结果的列表
             
+        # 遍历批次中的每个样本
             for bs_idx in range(batch_dict['batch_size']):
                 single_pred_dict = {
-                    'scenario_id': input_dict['scenario_id'][bs_idx],
-                    'pred_trajs': pred_trajs_world[bs_idx, :, :, 0:2].cpu().numpy(),
-                    'pred_scores': pred_scores[bs_idx, :].cpu().numpy(),
-                    'object_id': input_dict['center_objects_id'][bs_idx],
-                    'object_type': input_dict['center_objects_type'][bs_idx],
-                    'gt_trajs': input_dict['center_gt_trajs_src'][bs_idx].cpu().numpy(),
-                    'track_index_to_predict': input_dict['track_index_to_predict'][bs_idx].cpu().numpy()
+                    'scenario_id': input_dict['scenario_id'][bs_idx],  # 场景ID
+                    'pred_trajs': pred_trajs_world[bs_idx, :, :, 0:2].cpu().numpy(),  # 预测轨迹
+                    'pred_scores': pred_scores[bs_idx, :].cpu().numpy(),  # 预测得分
+                    'object_id': input_dict['center_objects_id'][bs_idx],  # 物体ID
+                    'object_type': input_dict['center_objects_type'][bs_idx],  # 物体类型
+                    'gt_trajs': input_dict['center_gt_trajs_src'][bs_idx].cpu().numpy(),  # 真实轨迹
+                    'track_index_to_predict': input_dict['track_index_to_predict'][bs_idx].cpu().numpy()  # 预测的轨迹索引
                 }
                 pred_dict_list.append(single_pred_dict)
             
-            assert len(pred_dict_list) == batch_dict['batch_size']
-            self.pred_dicts += pred_dict_list
+            assert len(pred_dict_list) == batch_dict['batch_size']  # 确保预测数量与批次大小一致
+            self.pred_dicts += pred_dict_list  # 将预测结果添加到总预测字典中
     
     def compute_metrics_and_log(self, batch, prediction, status='train'):
         """Compute metrics and log results"""

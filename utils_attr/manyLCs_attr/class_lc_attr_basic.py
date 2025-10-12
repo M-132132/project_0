@@ -129,7 +129,6 @@ class LCAttr:
             
             'GradientShap2': 'GradientShap2',
             'SPI': 'SPI',
-            'Dirichlet': 'Dirichlet',
             'OurIG': 'IntegratedGradients'
             }
     

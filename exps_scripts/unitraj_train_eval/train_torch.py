@@ -17,12 +17,12 @@ from utils.path_manager import path_manager
 @hydra.main(version_base=None, config_path=str(path_manager.get_config_path()), config_name="config")
 # @hydra.main(version_base=None, config_path="../../configs", config_name="config")
 def train(cfg):
-    path_manager.resolve_config_paths(cfg)
-    set_seed(cfg.seed)
-    OmegaConf.set_struct(cfg, False)
-    cfg = OmegaConf.merge(cfg, cfg.method)
+    path_manager.resolve_config_paths(cfg)  # 解析配置文件中的路径
+    set_seed(cfg.seed)  # 设置随机种子以确保实验可复现
+    OmegaConf.set_struct(cfg, False)  # 允许动态添加配置项
+    cfg = OmegaConf.merge(cfg, cfg.method)  # 合并基础配置和方法特定配置
     
-    # 创建数据集
+    # 创建数据集  # 构建训练集数据集
     train_set = build_dataset(cfg)
     val_set = build_dataset(cfg, val=True)
     
@@ -76,7 +76,7 @@ def train(cfg):
     
     # 开始训练
     trainer.fit(train_loader, val_loader, cfg.method.max_epochs)
-    
+
     
 class Trainer:
     def __init__(self, config):
@@ -292,7 +292,7 @@ class Trainer:
         for key in all_metrics[0].keys():
             aggregated_metrics[key] = np.mean([m[key] for m in all_metrics])
         
-        # 计算官方评估指标
+        # 计算评估指标
         if self.local_rank == 0:
             if self.config.get('eval_waymo', False):
                 if self.is_distributed:

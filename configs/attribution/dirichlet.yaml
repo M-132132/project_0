@@ -1,9 +1,0 @@
-# Dirichlet归因方法配置
-
-# @package _global_
-dirichlet_config:
-  alpha: 0.04           # Dirichlet分布concentration参数
-  n_paths: 35           # 采样路径数量
-  n_steps: 30           # 每条路径的步数
-  baseline_type: "zero" # 基线类型: zero, random, mean
-  seed: 42              # 随机种子
