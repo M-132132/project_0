@@ -136,28 +136,49 @@ class BaseVisualizationEnv(ScenarioEnv):
         return result
 
     def _render_topdown(self, text, *args, **kwargs):
+        """
+        自顶向下渲染方法，用于在俯视角度渲染场景。
+        该方法会创建一个增强的更新函数，用于在屏幕更新前绘制额外的信息，如轨迹、预测和归因叠加层。
+        参数:
+            text: 要渲染的文本内容
+            *args: 传递给父类渲染方法的位置参数
+            **kwargs: 传递给父类渲染方法的关键字参数
+        返回:
+            父类渲染方法的结果
+        """
+    # 检查是否已经初始化了自顶向下渲染器，如果没有则初始化
         if self.engine.top_down_renderer is None:
             from metadrive.engine.top_down_renderer import TopDownRenderer
 
+        # 创建新的自顶向下渲染器实例
             self.engine.top_down_renderer = TopDownRenderer(*args, **kwargs)
 
+    # 保存原始的pygame显示更新函数
         original_update = pygame.display.update
 
+    # 定义增强的更新函数，在显示更新前绘制额外信息
         def enhanced_update(*update_args, **update_kwargs):
+        # 绘制真实轨迹
             self.ground_truth_renderer.draw_trajectory(self)
 
+        # 如果存在预测渲染器，则绘制预测轨迹
             if self.prediction_renderer:
                 self.prediction_renderer.draw_trajectory(self)
 
+        # 如果存在归因叠加层，则绘制归因信息
             if self.attribution_overlay:
                 self.attribution_overlay.draw(self)
 
+        # 调用原始的更新函数
             return original_update(*update_args, **update_kwargs)
 
+    # 临时替换pygame的显示更新函数
         pygame.display.update = enhanced_update
         try:
+        # 调用父类的渲染方法
             return super()._render_topdown(text, *args, **kwargs)
         finally:
+        # 无论是否发生异常，都恢复原始的更新函数
             pygame.display.update = original_update
 
     def _get_current_scenario_id(self) -> Optional[str]:

@@ -233,9 +233,16 @@ class TrajAttrExperiment:
         # 启用梯度计算，以便进行归因分析
             with torch.enable_grad():
             # 计算并保存当前批次的归因分析结果
+                metadata = {'batch_id': batch_idx}
+                try:
+                    if isinstance(batch, dict) and 'input_dict' in batch and isinstance(batch['input_dict'], dict):
+                        metadata['scenario_ids'] = batch['input_dict'].get('scenario_id', []) or []
+                except Exception:
+                    metadata['scenario_ids'] = []
                 self.attributor.compute_and_save_attribution(
                     batch,
                     methods=self.config.attribution.methods,
+                    metadata=metadata,
                 )
 
             processed += 1  # 增加已处理批次计数

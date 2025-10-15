@@ -1,17 +1,17 @@
-import os
-import time
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import numpy as np
-from models import build_model
-from utils_datasets_traj import build_dataset
-from utils.utils_train_traj import set_seed, find_latest_checkpoint
-from utils.logger import Logger
-import hydra
-from omegaconf import OmegaConf
-from utils.path_manager import path_manager
+import os  # 操作系统接口
+import time  # 时间相关功能
+import torch  # PyTorch深度学习框架
+import torch.nn as nn  # PyTorch神经网络模块
+from torch.utils.data import DataLoader  # PyTorch数据加载器
+from tqdm import tqdm  # 进度条工具
+import numpy as np  # 数值计算库
+from models import build_model  # 模型构建函数
+from utils_datasets_traj import build_dataset  # 数据集构建函数
+from utils.utils_train_traj import set_seed, find_latest_checkpoint  # 训练工具函数
+from utils.logger import Logger  # 日志记录器
+import hydra  # Hydra配置管理工具
+from omegaconf import OmegaConf  # 配置文件操作工具
+from utils.path_manager import path_manager  # 路径管理工具
 
 
 @hydra.main(version_base=None, config_path=str(path_manager.get_config_path()), config_name="config")
@@ -22,7 +22,7 @@ def train(cfg):
     OmegaConf.set_struct(cfg, False)  # 允许动态添加配置项
     cfg = OmegaConf.merge(cfg, cfg.method)  # 合并基础配置和方法特定配置
     
-    # 创建数据集  # 构建训练集数据集
+    # 创建数据集  （仅仅是创建）
     train_set = build_dataset(cfg)
     val_set = build_dataset(cfg, val=True)
     
@@ -34,7 +34,7 @@ def train(cfg):
         train_batch_size = cfg.method['train_batch_size']
         eval_batch_size = cfg.method['eval_batch_size']
     
-    # 创建数据加载器
+    # 创建数据加载器（已经转化为H5数据）
     if len(cfg.devices) > 1 and not cfg.debug:
         # 分布式训练
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
@@ -168,7 +168,7 @@ class Trainer:
                 self.logger.log_text(f"Checkpoint not found: {checkpoint_path}")
             return
         
-        checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)#包含权重
         
         if self.is_distributed:
             self.model.module.load_state_dict(checkpoint['model_state_dict'])
@@ -205,7 +205,7 @@ class Trainer:
             
             self.optimizer.zero_grad()
             
-            # 前向传播
+            # 前向传播，batch中储存着
             prediction, loss = self.model(batch)
             
             # 反向传播
