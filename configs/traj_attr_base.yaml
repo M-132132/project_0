@@ -43,8 +43,8 @@ attribution:
   # 在此选择当前使用的方法
   # 使用 AttnLRP（默认）：
   methods: ["AttnLRP"]
-  #methods: ["AttnLRP","IntegratedGradients"]
-  # methods: ["IntegratedGradients", "DeepLift", "Saliency"]
+  #methods: ["AttnLRP,"IntegratedGradients"]
+  #methods: ["IntegratedGradients", "DeepLift", "Saliency"]
 
   batch_limit: 12
   distance_type: "min_ade"

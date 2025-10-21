@@ -1,4 +1,8 @@
-"""归因可视化叠加层，与轨迹渲染器并行工作。"""
+"""Attribution overlay for visualization (UTF-8, ASCII-only content).
+
+Draws overlays using attribution arrays loaded from a folder provided
+by YAML (attribution.numpy_dir). No method selection or metadata is used.
+"""
 
 from __future__ import annotations
 
@@ -15,12 +19,12 @@ logger = logging.getLogger(__name__)
 
 
 class AttributionOverlay:
-    """归因可视化叠加模块。保持原有绘制效果，增强数据加载与场景匹配。"""
+    """Lightweight attribution overlay."""
 
     def __init__(self, config: Dict[str, Any]):
-        self.enabled = config.get('enabled', False)
-        self.opacity = float(config.get('opacity', 0.5))
-        self.threshold = float(config.get('threshold', 0.02))
+        self.enabled = config.get("enabled", False)
+        self.opacity = float(config.get("opacity", 0.5))
+        self.threshold = float(config.get("threshold", 0.02))
 
         self.obj_attr: Optional[np.ndarray] = None
         self.map_attr: Optional[np.ndarray] = None
@@ -35,22 +39,18 @@ class AttributionOverlay:
         ]
 
         if not self.enabled:
-            self.loader: Optional[AttributionLoader] = None
-            self.method = config.get('method', 'IntegratedGradients')
+            self.loader = None
             return
 
-        numpy_dir = config.get('numpy_dir')
-        method = config.get('method', 'IntegratedGradients')
+        numpy_dir = config.get("numpy_dir")
         if not numpy_dir:
-            logger.warning('归因叠加启用但未提供 numpy_dir，功能已禁用。')
+            logger.warning("Attribution enabled but numpy_dir missing; disabling overlay")
             self.enabled = False
             self.loader = None
-            self.method = method
             return
 
-        self.loader = AttributionLoader(Path(numpy_dir), method)
-        self.method = method
-        logger.info('归因叠加层已启用: %s', method)
+        self.loader = AttributionLoader(Path(numpy_dir))
+        logger.info("Attribution overlay enabled: dir=%s", numpy_dir)
 
     def reset(
         self,
@@ -71,13 +71,13 @@ class AttributionOverlay:
             self.obj_attr = None
             self.map_attr = None
             self.current_key = None
-            logger.warning('未找到归因数据: scenario=%s batch=%s', scenario_id, batch_idx)
+            logger.warning("No attribution found: scenario=%s batch=%s", scenario_id, batch_idx)
             return
 
         self.obj_attr = data.obj_attr
         self.map_attr = data.map_attr
         self.current_key = key
-        logger.info('归因数据已加载: prefix=%s scenario=%s batch=%s', data.prefix, data.scenario_id, data.batch_id)
+        logger.info("Attribution loaded: prefix=%s scenario=%s batch=%s", data.prefix, data.scenario_id, data.batch_id)
 
     def draw(self, env) -> None:
         if not self.enabled or not self._has_data():
@@ -99,9 +99,8 @@ class AttributionOverlay:
             screen.blit(overlay, (0, 0))
 
         except Exception as exc:
-            logger.error('绘制归因叠加层失败: %s', exc)
+            logger.error("Draw overlay failed: %s", exc)
 
-    # ----- 原有绘制逻辑保持不变 -----
     def _has_data(self) -> bool:
         return self.obj_attr is not None or self.map_attr is not None
 
@@ -119,10 +118,10 @@ class AttributionOverlay:
                 if screen_pos is None:
                     continue
 
-                self._draw_importance_circle(surface, screen_pos, score, 'agent')
+                self._draw_importance_circle(surface, screen_pos, score)
 
         except Exception as exc:
-            logger.error('绘制智能体归因失败: %s', exc)
+            logger.error("Draw agent attribution failed: %s", exc)
 
     def _draw_map_attribution(self, env, surface):
         try:
@@ -142,31 +141,31 @@ class AttributionOverlay:
                 if screen_pos is None:
                     continue
 
-                self._draw_importance_point(surface, screen_pos, score, 'map')
+                self._draw_importance_point(surface, screen_pos, score)
 
         except Exception as exc:
-            logger.error('绘制地图归因失败: %s', exc)
+            logger.error("Draw map attribution failed: %s", exc)
 
     def _get_agent_screen_position(self, env, agent_id: int) -> Optional[Tuple[int, int]]:
         try:
-            manager = getattr(env.engine, 'data_manager', None)
-            scenario = getattr(manager, 'current_scenario', None)
-            if scenario is not None and hasattr(scenario, 'dynamic_map_states'):
-                current_frame = getattr(env, 'episode_step', 0)
-                states = getattr(scenario, 'dynamic_map_states', [])
+            manager = getattr(env.engine, "data_manager", None)
+            scenario = getattr(manager, "current_scenario", None)
+            if scenario is not None and hasattr(scenario, "dynamic_map_states"):
+                current_frame = getattr(env, "episode_step", 0)
+                states = getattr(scenario, "dynamic_map_states", [])
                 if current_frame < len(states):
                     frame_data = states[current_frame]
-                    tracks = getattr(frame_data, 'tracks', [])
+                    tracks = getattr(frame_data, "tracks", [])
                     if agent_id < len(tracks):
                         track = tracks[agent_id]
-                        state = getattr(track, 'get_state', None)
+                        state = getattr(track, "get_state", None)
                         if callable(state):
                             value = state()
                             world_pos = (value.position[0], value.position[1])
                             return self._world_to_screen(env, world_pos)
 
-            if hasattr(env, 'engine') and hasattr(env.engine, 'get_objects'):
-                vehicles = [obj for obj in env.engine.get_objects().values() if hasattr(obj, 'position')]
+            if hasattr(env, "engine") and hasattr(env.engine, "get_objects"):
+                vehicles = [obj for obj in env.engine.get_objects().values() if hasattr(obj, "position")]
                 if agent_id < len(vehicles):
                     vehicle = vehicles[agent_id]
                     world_pos = (vehicle.position[0], vehicle.position[1])
@@ -175,18 +174,18 @@ class AttributionOverlay:
             return None
 
         except Exception as exc:
-            logger.debug('获取智能体%s位置失败: %s', agent_id, exc)
+            logger.debug("Get agent position failed: %s", exc)
             return None
 
     def _get_map_point_screen_position(self, env, seg_idx: int, pt_idx: int) -> Optional[Tuple[int, int]]:
         try:
-            manager = getattr(env.engine, 'data_manager', None)
-            scenario = getattr(manager, 'current_scenario', None)
+            manager = getattr(env.engine, "data_manager", None)
+            scenario = getattr(manager, "current_scenario", None)
 
             if scenario is not None:
-                map_features = getattr(scenario, 'map_features', None)
+                map_features = getattr(scenario, "map_features", None)
                 if map_features and seg_idx < len(map_features):
-                    polyline = getattr(map_features[seg_idx], 'polyline', None)
+                    polyline = getattr(map_features[seg_idx], "polyline", None)
                     if polyline is not None and pt_idx < len(polyline):
                         point = polyline[pt_idx]
                         world_pos = (point[0], point[1])
@@ -195,28 +194,28 @@ class AttributionOverlay:
             return None
 
         except Exception as exc:
-            logger.debug('获取地图点[%s,%s]位置失败: %s', seg_idx, pt_idx, exc)
+            logger.debug("Get map point position failed: %s", exc)
             return None
 
     def _world_to_screen(self, env, world_pos: Tuple[float, float]) -> Optional[Tuple[int, int]]:
         try:
-            renderer = getattr(getattr(env, 'engine', None), 'top_down_renderer', None)
+            renderer = getattr(getattr(env, "engine", None), "top_down_renderer", None)
             if renderer is not None:
-                surface = getattr(renderer, '_frame_canvas', None)
-                screen_canvas = getattr(renderer, 'screen_canvas', None)
+                surface = getattr(renderer, "_frame_canvas", None)
+                screen_canvas = getattr(renderer, "screen_canvas", None)
 
                 if surface is not None and screen_canvas is not None:
                     px, py = surface.pos2pix(world_pos[0], world_pos[1])
 
-                    if getattr(renderer, 'target_agent_heading_up', False):
+                    if getattr(renderer, "target_agent_heading_up", False):
                         return int(px), int(py)
 
                     field_w, field_h = screen_canvas.get_size()
 
-                    cam_pos = getattr(renderer, 'position', None)
+                    cam_pos = getattr(renderer, "position", None)
                     if cam_pos is None:
-                        track_agent = getattr(renderer, 'current_track_agent', None)
-                        if track_agent is not None and hasattr(track_agent, 'position'):
+                        track_agent = getattr(renderer, "current_track_agent", None)
+                        if track_agent is not None and hasattr(track_agent, "position"):
                             cam_pos = track_agent.position
 
                     if cam_pos is not None:
@@ -239,10 +238,10 @@ class AttributionOverlay:
             return None
 
         except Exception as exc:
-            logger.debug('坐标转换失败: %s', exc)
+            logger.debug("World-to-screen transform failed: %s", exc)
             return None
 
-    def _draw_importance_circle(self, surface, pos: Tuple[int, int], importance: float, type_: str):
+    def _draw_importance_circle(self, surface, pos: Tuple[int, int], importance: float):
         color = self._get_importance_color(importance)
         radius = int(15 + importance * 20)
         alpha = int(255 * self.opacity)
@@ -252,7 +251,7 @@ class AttributionOverlay:
         pygame.draw.circle(circle_surface, (*color, alpha), (radius, radius), radius)
         surface.blit(circle_surface, (pos[0] - radius, pos[1] - radius))
 
-    def _draw_importance_point(self, surface, pos: Tuple[int, int], importance: float, type_: str):
+    def _draw_importance_point(self, surface, pos: Tuple[int, int], importance: float):
         color = self._get_importance_color(importance)
         radius = int(3 + importance * 5)
         alpha = int(255 * self.opacity)
@@ -263,7 +262,7 @@ class AttributionOverlay:
         surface.blit(point_surface, (pos[0] - radius, pos[1] - radius))
 
     def _get_importance_color(self, importance: float) -> Tuple[int, int, int]:
-        importance = max(0, min(1, importance))
+        importance = max(0.0, min(1.0, float(importance)))
         color_idx = importance * (len(self.colormap) - 1)
         lower_idx = int(color_idx)
         upper_idx = min(lower_idx + 1, len(self.colormap) - 1)
@@ -275,3 +274,4 @@ class AttributionOverlay:
         lower_color = self.colormap[lower_idx]
         upper_color = self.colormap[upper_idx]
         return tuple(int(lower_color[i] * (1 - t) + upper_color[i] * t) for i in range(3))
+

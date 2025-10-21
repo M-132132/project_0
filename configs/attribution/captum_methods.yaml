@@ -3,7 +3,7 @@ captum_config:
   # IntegratedGradients配置
   integrated_gradients:
     n_steps: 100
-    method: "gausslegendre"  # riemann_left, riemann_right, riemann_middle, riemann_trapezoid, gausslegendre
+    method: "gausslegendre"
     baseline_type: "zero"
     
   # DeepLift配置

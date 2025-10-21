@@ -14,7 +14,6 @@ min_prediction_probability: 0.05
 # 归因可视化配置
 attribution:
   enabled: true
-  numpy_dir: "exps_res/res_trajattr/autobot_nuscenes/attributions/numpy"
-  method: "IntegratedGradients"
+  numpy_dir: "exps_res/res_trajattr/autobot_nuscenes/attributions/numpy/AttnLRP"
   opacity: 0.8
   threshold: 0.005

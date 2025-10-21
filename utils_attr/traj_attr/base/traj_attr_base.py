@@ -172,7 +172,17 @@ class TrajAttrBase:
             attr_calculator = GuidedIGAttribution(self, **method_config)
             attributions = attr_calculator.compute_attribution(
                 attribution_inputs, static_inputs, input_tensors)
-            
+
+        elif method == 'CP-AttnLRP':
+            # AttnLRP with CP attention rule
+            method_config = self._get_attnlrp_method_config(method)
+            method_config.update(kwargs)
+            method_config['attention_rule'] = 'CP'
+            from ..methods.attn_lrp_attr import AttnLRPAttribution
+            attr_calculator = AttnLRPAttribution(self, **method_config)
+            attributions = attr_calculator.compute_attribution(
+                attribution_inputs, static_inputs, input_tensors)
+
         elif method == 'AttnLRP':
             # 使用 AttnLRP（模块级 LRP/CP‑LRP 注意力）。
             # 从配置中提取 AttnLRP 专属参数（可选）。
@@ -248,7 +258,10 @@ class TrajAttrBase:
             return
             
         # 使用传入的路径字典中的 numpy 目录（已由 compute_traj_attr.py 创建）
-        np_save_dir = self.attr_save_dir
+        # Save under method-named subdirectory inside numpy dir
+        method_dir = os.path.join(self.attr_save_dir, str(method))
+        os.makedirs(method_dir, exist_ok=True)
+        np_save_dir = method_dir
         
         batch_size = list(attributions.values())[0].size(0)
         batch_id = metadata.get('batch_id') if metadata else None
