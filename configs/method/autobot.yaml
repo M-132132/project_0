@@ -1,4 +1,4 @@
-# common
+# 通用设置
 model_name: autobot
 num_modes: 6
 hidden_size: 128
@@ -11,27 +11,27 @@ entropy_weight: 40.0
 kl_weight: 20.0
 use_FDEADE_aux_loss: True
 
-# train
+# 训练设置
 max_epochs: 50 #150 #40
-learning_rate: 0.00075 # 0.00075 # 1e-3 for lanegcn
+learning_rate: 0.00075 # 0.00075 # lanegcn 可用 1e-3
 learning_rate_sched: [ 10, 20, 30, 40, 50 ]
-optimizer: Adam #According to PyTorch naming
-scheduler: multistep # plateau, multistep
+optimizer: Adam # 按 PyTorch 命名
+scheduler: multistep # 可选 plateau 或 multistep
 ewc_lambda: 2000
 train_batch_size: 1 #32 #128
 eval_batch_size: 1 #32 #128
 grad_clip_norm: 5
 
-# data related
+# 数据相关
 max_num_agents: 15
 map_range: 100
 max_num_roads: 256
-max_points_per_lane: 20 # will be overwritten if manually_split_lane is True
-# lane split related params
-manually_split_lane: False # if True, lanes will be split with the same number of points and length, else, lanes will be split with the same number of points but varying length
-point_sampled_interval: 1 # only used when manually_split_lane is True, the interval of points sampled from the original lane
-num_points_each_polyline: 20 # only used when manually_split_lane is True, the number of points in each polyline
-vector_break_dist_thresh: 1.0 # only used when manually_split_lane is True, the distance threshold to break the vector to split the lane
+max_points_per_lane: 20 # 若手动拆分车道，则此值会被覆盖
+# 车道拆分相关参数
+manually_split_lane: False # 若为 True：按相同点数与长度拆分；否则相同点数但长度可变
+point_sampled_interval: 1 # 仅在手动拆分时生效：从原始车道采样的点间距
+num_points_each_polyline: 20 # 仅在手动拆分时生效：每段折线的点数
+vector_break_dist_thresh: 1.0 # 仅在手动拆分时生效：向量分段距离阈值
 
 
 

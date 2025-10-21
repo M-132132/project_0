@@ -266,8 +266,7 @@ class TrajAttrExperiment:
         if isinstance(batch, list):
             # 如果是列表，递归处理每个元素，保持列表结构
             return [self._move_to_device(item, device) for item in batch]
-        return batch  # 其他类型数据直接返回，不做处理
-
+        return batch  # 其他类型数据直接返回，不做处理exps_scripts/exp_trajattr/compute_traj_attr.py
 
 if __name__ == "__main__":
     main()

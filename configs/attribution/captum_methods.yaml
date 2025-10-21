@@ -1,6 +1,4 @@
-# Captum归因方法配置
-
-# @package _global_
+# 作用域：全局包 (@package _global_)
 captum_config:
   # IntegratedGradients配置
   integrated_gradients:

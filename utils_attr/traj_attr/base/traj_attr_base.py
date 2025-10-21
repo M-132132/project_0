@@ -173,6 +173,16 @@ class TrajAttrBase:
             attributions = attr_calculator.compute_attribution(
                 attribution_inputs, static_inputs, input_tensors)
             
+        elif method == 'AttnLRP':
+            # 使用 AttnLRP（模块级 LRP/CP‑LRP 注意力）。
+            # 从配置中提取 AttnLRP 专属参数（可选）。
+            method_config = self._get_attnlrp_method_config(method)
+            method_config.update(kwargs)
+            from ..methods.attn_lrp_attr import AttnLRPAttribution
+            attr_calculator = AttnLRPAttribution(self, **method_config)
+            attributions = attr_calculator.compute_attribution(
+                attribution_inputs, static_inputs, input_tensors)
+
         else:
             # 使用Captum方法
             from ..methods.captum_attr import CaptumAttribution
@@ -272,7 +282,36 @@ class TrajAttrBase:
                 np.save(np_path, attr_np)
                 
         print(f"归因结果已保存至: {self.attr_save_dir}")
-    
+
+    # ---- AttnLRP helper config --------------------------------------------
+    def _get_attnlrp_method_config(self, method_name: str) -> Dict[str, Any]:
+        """
+        获取注意力LRP（Layer-wise Relevance Propagation）方法的配置信息
+        参数:
+            method_name (str): 方法名称，虽然当前函数未使用此参数，但保留以备将来扩展
+        返回:
+            Dict[str, Any]: 包含注意力LRP配置的字典，如果配置不存在则返回空字典
+        """
+    # 从配置中获取默认的注意力LRP配置，如果不存在则为空字典
+        attnlrp_cfg = self.config.get('attn_lrp_config', {})
+    # 检查配置对象是否有attribution属性
+        if hasattr(self.config, 'attribution'):
+            attribution_cfg = self.config.attribution
+        # 如果attribution配置中有attn_lrp_config，则使用它覆盖默认配置
+            if hasattr(attribution_cfg, 'attn_lrp_config'):
+                attnlrp_cfg = attribution_cfg.attn_lrp_config
+    # 尝试将配置对象转换为字典
+        if hasattr(attnlrp_cfg, 'to_dict'):
+            attnlrp_cfg = attnlrp_cfg.to_dict()
+    # 如果对象没有to_dict方法但有_content属性，则使用_content
+        elif hasattr(attnlrp_cfg, '_content'):
+            attnlrp_cfg = attnlrp_cfg._content
+    # 确保最终返回的是字典类型，如果不是则返回空字典
+        if not isinstance(attnlrp_cfg, dict):
+            return {}
+    # 返回配置的副本以避免外部修改
+        return attnlrp_cfg.copy()
+
     def compute_and_save_attribution(self, batch: Dict, methods: List[str] = None,
                                      metadata: Optional[Dict] = None) -> Dict:
         """

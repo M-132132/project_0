@@ -1,40 +1,29 @@
-# AutoBot模型归因配置
-defaults:
-  - /traj_attr_base
-  - _self_
+# AutoBot模型归因配置（模型相关与通用归因选项，不含方法选择）
 
-# 模型设置
-model_name: "autobot"
-ckpt_path: "weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
+# 模型设置（与顶层重复项已移除：model_name, ckpt_path）
 
-# AutoBot特定归因设置
 attribution:
   enable: true
-  methods: ["IntegratedGradients", "Saliency", "GradientShap"]
-  batch_limit: 12
-  distance_type: "min_ade"
 
   # AutoBot特定分析
   analyze_agent_interactions: true
   analyze_map_influence: true
   analyze_temporal_patterns: true
 
-# 可视化设置
-visualization:
-  enable: true
-  plot_types: ["trajectory", "map", "importance", "temporal", "agent_interaction"]
-
-  # AutoBot特定可视化
-  plot_multimodal_attribution: true
-  plot_scene_context: true
-
-# 分析设置
-analysis:
-  compute_feature_importance: true
-  compute_temporal_importance: true
-  compute_agent_importance: true
-  compute_map_importance: true
-
-  # AutoBot特定分析
-  analyze_mode_selection: true
-  analyze_social_interactions: true
+#visualization:
+#  enable: true
+#  plot_types: ["trajectory", "map", "importance", "temporal", "agent_interaction"]
+#
+#  # AutoBot特定可视化
+#  plot_multimodal_attribution: true
+#  plot_scene_context: true
+#
+#analysis:
+#  compute_feature_importance: true
+#  compute_temporal_importance: true
+#  compute_agent_importance: true
+#  compute_map_importance: true
+#
+#  # AutoBot特定分析
+#  analyze_mode_selection: true
+#  analyze_social_interactions: true
