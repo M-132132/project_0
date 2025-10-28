@@ -1,15 +1,28 @@
-/.claude/
+#忽略配置文件
+.claude/
+.idea/
+.history/
+.vscode/
 
-/LRP-eXplains-Transformers-main/
+#忽略类型文件
+*.txt
+*.log
 
-/dataset_traj/
+# 忽略指定路径文件夹下所有内容
+LRP-eXplains-Transformers-main/
 
-/cache/
+dataset_traj/
 
-/weights/
+cache/
 
-/exps_scripts/unitraj_train_eval/hydra_outputs/
-/exps_scripts/unitraj_train_eval/tmp/
-/exps_scripts/unitraj_train_eval/evaluation_output/
+weights/
 
-/exps_res/
+exps_scripts/unitraj_train_eval/hydra_outputs/
+exps_scripts/unitraj_train_eval/tmp/
+exps_scripts/unitraj_train_eval/evaluation_output/
+exps_scripts/exp_trajattr/tmp
+exps_res/
+exps_scripts/exp_trajattr/hydra_outputs
+
+# 忽略该名称所有的文件夹
+__pycache__
