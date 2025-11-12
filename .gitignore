@@ -1,31 +1,15 @@
+/.claude/
 
-.idea/
+/LRP-eXplains-Transformers-main/
 
-.claude/
-cache/*
+/dataset_traj/
 
-data_samples/
-dataset_lc/data
-dataset_lc/data_dop
-dataset_lc/data_lstm_my
-dataset_lc/data_lstm_ori
-dataset_traj/
-vis/
+/cache/
 
-exps_res/
+/weights/
 
-exps_scripts/exp_trajattr/hydra_outputs
-exps_scripts/unitraj_train_eval/tmp/
-exps_scripts/unitraj_train_eval/hydra_outputs/
+/exps_scripts/unitraj_train_eval/hydra_outputs/
+/exps_scripts/unitraj_train_eval/tmp/
+/exps_scripts/unitraj_train_eval/evaluation_output/
 
-logs/
-metadrive/
-nuplan-devkit/
-scenarionet/
-
-test_outputs/
-
-weights/
-.claudeignore/
-
-README.py
+/exps_res/

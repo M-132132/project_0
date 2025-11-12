@@ -1,11 +1,9 @@
-# Captum归因方法配置
-
-# @package _global_
+# 作用域：全局包 (@package _global_)
 captum_config:
   # IntegratedGradients配置
   integrated_gradients:
-    n_steps: 50
-    method: "gausslegendre"  # riemann_left, riemann_right, riemann_middle, riemann_trapezoid, gausslegendre
+    n_steps: 100
+    method: "gausslegendre"
     baseline_type: "zero"
     
   # DeepLift配置
@@ -32,7 +30,7 @@ captum_config:
     
   # ShapleyValueSampling配置
   shapley_value_sampling:
-    n_samples: 25
+    n_samples: 1
     show_progress: true
     baseline_type: "zero"
     

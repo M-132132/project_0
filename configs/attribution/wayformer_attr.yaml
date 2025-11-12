@@ -1,9 +1,4 @@
-# Wayformer模型归因配置
-defaults:
-  - traj_attr_base
-  - /method: wayformer
-  - _self_
-
+# Wayformer模型归因配置（模型相关与通用归因选项，不含方法选择）
 # 模型设置
 model_name: "wayformer"
 ckpt_path: "TrajAttr_ckpt/wayformer_train/best_model.ckpt"
@@ -11,7 +6,6 @@ ckpt_path: "TrajAttr_ckpt/wayformer_train/best_model.ckpt"
 # Wayformer特定归因设置
 attribution:
   enable: true
-  methods: ["IntegratedGradients", "Dirichlet", "Saliency", "DeepLift"]
   batch_limit: 12
   distance_type: "min_ade"
   

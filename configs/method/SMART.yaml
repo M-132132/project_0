@@ -1,5 +1,5 @@
-# Config format schema number, the yaml support to valid case source from different dataset
-# common
+# 配置格式版本：用于支持不同数据集来源的有效用例
+# 通用设置
 model_name: SMART
 
 time_info: &time_info

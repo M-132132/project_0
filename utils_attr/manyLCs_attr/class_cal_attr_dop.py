@@ -209,7 +209,7 @@ class DOPAttrCal(LCAttr):
             
             if not self.flag_attr_np_load:
                 # 设定归因方法
-                if attr_method_cap_name in ['SPI', 'Dirichlet']:
+                if attr_method_cap_name in ['SPI']:
                     baselines, baseline_scales = self.get_baseline(input_tensors, flag_base='1-')
                 elif attr_method_name in ['OurIG']:
                     baselines, baseline_scales = self.get_baseline(input_tensors, flag_base='0-')
@@ -228,9 +228,6 @@ class DOPAttrCal(LCAttr):
                 elif attr_method_name == 'ShapleySampling':
                     attrs = attr_method.attribute(inputs=input_tensors, target=attr_index, baselines=baselines,
                                                   n_samples=10, show_progress=False)
-                elif attr_method_name == 'Dirichlet':
-                    attrs = self.cal_Dirichlet_attr(inputs=input_tensors, baseline=baselines, baseline_scales=baseline_scales,
-                                                    target=attr_index, alpha=0.04, n_paths=35, n_steps=30)
             else:
                 attrs = self.load_attr(metadata, input_tensors)
             # 处理并保存 attr
@@ -238,78 +235,6 @@ class DOPAttrCal(LCAttr):
             self.save_res(attrs_ori_l, attrs_filtered_l, attr_hm_name)
             attr_res[attr_method_name]['attrs_ori'] = attrs_ori_l
             attr_res[attr_method_name]['attrs_filtered'] = attrs_filtered_l
-        return attr_res
-    
-    def cal_Dirichlet_attr(self, inputs, baseline, baseline_scales, target, alpha=0.04, n_paths=30, n_steps=30):
-        torch.manual_seed(3)
-        # inputs 包含了输入的 3 个 tensors, 所以后面输入都需要处理 3 个 tensors
-        # 其他指数分布族 (缩放 sample 结果至 0-1) 也有类似效果, 代码可以参考 check_torch_distrib,
-        concentration = alpha * torch.ones(n_steps-1)  # 可以调整concentration参数改变随机性
-        dirichlet_distrib = torch.distributions.Dirichlet(concentration)
-        
-        inputs_shapes = []
-        for i_input in range(3):
-            inputs_shape = inputs[i_input].shape
-            inputs_shapes.append(inputs_shape)
-            
-        linspace_values = []
-        for i_input in range(3):
-            linspace_value = torch.linspace(0, 1, n_steps, device=self.opt.device)
-            linspace_value = linspace_value.reshape([-1, ] + [1, ] * len(inputs_shapes[i_input]))
-            linspace_values.append(linspace_value)
-            
-        # -----------------------------------------------------------------------------------
-        rand_igs = [[], [], []]
-        for i in range(n_paths):
-            rand_xpaths = []
-            for i_input in range(3):
-                # 采样出 Dirichlet 数据点, 并进行累加
-                # 这里 gaps 是 1*1*7*8*29, 1 是 batch size, 1 是一个车, 7*8 是特征矩阵, 29 是步数
-                gaps = dirichlet_distrib.sample([*inputs_shapes[i_input]]).to(self.opt.device)
-                sequences = torch.zeros([*inputs_shapes[i_input], n_steps], device=self.opt.device)
-                sequences[..., 1:] = torch.cumsum(gaps, dim=-1)
-                if len(inputs_shapes[i_input]) == 4:
-                    sequences = sequences.permute(4, 0, 1, 2, 3)
-                else:
-                    sequences = sequences.permute(2, 0, 1)
-                
-                # 过滤部分结果
-                u = torch.rand_like(sequences) < linspace_values[i_input]
-                u_np = utils_save.from_tensor_to_np(u)
-                sequence_rand = torch.mul(sequences, u)
-                
-                sequence_rand_np = utils_save.from_tensor_to_np(sequence_rand)
-                
-                # 与 inputs 相乘构建分段路径
-                rand_xpath_temp = (torch.mul(sequence_rand, inputs[i_input][None, ]) +
-                                   torch.mul(1-sequence_rand, baseline[i_input][None, ])).requires_grad_(True)
-                rand_xpaths.append(rand_xpath_temp)
-                
-            # 沿着路径收集梯度
-            rand_gpaths0 = []
-            rand_gpaths1 = []
-            rand_gpaths2 = []
-            for tensor1, tensor2, tensor3 in zip(*rand_xpaths):
-                _x = (tensor1, tensor2, tensor3)
-                _y_temp = self.forward_func(*_x)
-                _y = _y_temp[0, target]
-                _g = torch.autograd.grad(_y, _x)
-                rand_gpaths0.append(_g[0])
-                rand_gpaths1.append(_g[1])
-                rand_gpaths2.append(_g[2])
-            
-            rand_gpaths = [rand_gpaths0, rand_gpaths1, rand_gpaths2]
-            for i_input in range(3):
-                rand_gpath = rand_gpaths[i_input]
-                rand_gpath = torch.stack(rand_gpath)
-                # 使用黎曼积分收集梯度
-                rand_xpath = rand_xpaths[i_input]
-                rand_ig = torch.mul(rand_xpath[1:]-rand_xpath[:-1], (rand_gpath[1:]+rand_gpath[:-1])/2).sum(dim=0)
-                rand_igs[i_input].append(rand_ig)
-        
-        attr_res = []
-        for i_input in range(3):
-            attr_res.append(torch.mean(torch.stack(rand_igs[i_input]), dim=0))
         return attr_res
     
     def get_baseline(self, input_tensors, flag_base):

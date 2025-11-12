@@ -1,17 +1,17 @@
 # 基础轨迹预测归因配置
 defaults:
   - method: autobot
-  - attribution/dirichlet
-  - attribution/captum_methods
+  - attribution@model_attr: autobot_attr
+  - attribution@captum_lib: captum_methods
+  - attribution@attnlrp_lib: AttnLRP_method
   - _self_
 
 # 实验基础设置
 exp_name: "traj_attr_exp"
 # 如果在仓库根目录运行脚本：
-ckpt_path: "D:/Autonomous-Driving/TrajAttrPub/weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
+ckpt_path: "weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
 
-#ckpt_path: "/media/shi/Code/PycharmProjects/TrajAttr/weights/TrajAttr_ckpt/autobot_train/best_model.ckpt" # checkpoint path, used for evaluation
-model_name: "autobot"  # autobot, wayformer, mtr, smart
+model_name: "${method.model_name}"
 dataset_name: "nuscenes"
 
 # 实验设置
@@ -20,61 +20,54 @@ debug: False
 devices: [0]
 
 # 数据相关
-load_num_workers: 0 # number of workers for loading data
-train_data_path: [ "data_samples/nuscenes" ] # list of paths to the training data
-val_data_path: [ "data_samples/nuscenes" ] # list of paths to the validation data
-cache_path: "D:/Autonomous-Driving/TrajAttrPubTrajAttr/cache"
-max_data_num: [ null ] # maximum number of data for each training dataset, null means all data
-starting_frame: [ 0 ] # history trajectory starts at this frame for each training dataset
-past_len: 21 # history trajectory length, 2.1s
-future_len: 60 # future trajectory length, 6s
-object_type: [ 'VEHICLE' ]#, 'PEDESTRIAN', 'CYCLIST'] # object types included in the training set
-line_type: [ 'lane','stop_sign','road_edge','road_line','crosswalk','speed_bump' ] # line type to be considered in the input
-masked_attributes: [ 'z_axis', 'size' ] # attributes to be masked in the input
-trajectory_sample_interval: 1 # sample interval for the trajectory
-only_train_on_ego: False # only train on AV
-center_offset_of_map: [ 30.0, 0.0 ] # center offset of the map
-use_cache: False # use cache for data loading
-overwrite_cache: False # overwrite existing cache
-store_data_in_memory: False # store data in memory
+load_num_workers: 0
+train_data_path: [ "dataset_traj/scn_split_train" ]
+val_data_path: [ "dataset_traj/scn_split_val" ]
+cache_path: "cache/traj_attr"
+max_data_num: [ 12 ]
+starting_frame: [ 0 ]
+past_len: 21
+future_len: 60
+object_type: [ 'VEHICLE' ]
+line_type: [ 'lane','stop_sign','road_edge','road_line','crosswalk','speed_bump' ]
+masked_attributes: [ 'z_axis', 'size' ]
+trajectory_sample_interval: 1
+only_train_on_ego: False
+center_offset_of_map: [ 30.0, 0.0 ]
+use_cache: False
+overwrite_cache: False
+store_data_in_memory: False
 
-# 归因设置
+# 归因设置（顶层选择方法；覆盖子配置）
 attribution:
-  enable: true
-  methods: ["IntegratedGradients", "Dirichlet", "Saliency"]
-  batch_limit: 10  # 限制计算归因的批次数
-  distance_type: "min_ade"  # 主要距离度量类型
-  save_raw_attributions: true  # 保存原始归因值
-  compute_statistics: true     # 计算统计信息
-  
+  # 在此选择当前使用的方法
+  # 使用 AttnLRP（默认）：
+  methods: ["AttnLRP"]
+  #methods: ["AttnLRP,"IntegratedGradients"]
+  #methods: ["IntegratedGradients", "DeepLift", "Saliency"]
+
+  batch_limit: 12
+  distance_type: "min_ade"
+  save_raw_attributions: true
+
+  # 可选：覆盖 AttnLRP 专属参数
+  # attn_lrp_config:
+  #   attention_rule: "CP"   # 或 "AttnLRP"
+  #   epsilon: 1.0e-6
+  #   gamma: 0.25
+
+# 可选：覆盖 Captum 专属参数
+# captum_config:
+#   integrated_gradients:
+#     n_steps: 50
+#     method: "riemann_trapezoid"
+
 # 保存配置
 save_config:
   base_dir: "exps_res/res_trajattr"
   create_timestamp_dir: false
-  save_formats: ["numpy", "json", "png"]
-  compress_numpy: true
-  precision: "float32"
-  max_file_size_mb: 100
-  
-# 可视化配置
-visualization:
-  enable: true
-  plot_types: ["trajectory", "map", "importance", "temporal"]
-  color_scheme: "viridis"
-  figure_size: [12, 8]
-  dpi: 150
-  font_size: 12
-  save_formats: ["png", "pdf"]
-  
-# 分析配置
-analysis:
-  compute_feature_importance: true
-  compute_temporal_importance: true
-  compute_agent_importance: true
-  generate_summary_statistics: true
-  create_comparison_plots: true
 
-# Hydra配置
+# Hydra 配置
 hydra:
   run:
     dir: hydra_outputs/${model_name}_${dataset_name}

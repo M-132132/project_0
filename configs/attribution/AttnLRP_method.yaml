@@ -1,0 +1,8 @@
+attn_lrp_config:
+
+#禁止修改 attention_rule，直接在configs/traj_attr_base.yaml中选定AttnLRP还是CP-AttnLRP就可以
+  attention_rule: "AttnLRP"
+
+  epsilon: 1.0e-6
+
+  gamma: 0.25

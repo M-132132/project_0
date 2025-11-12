@@ -1,7 +1,7 @@
-# common
+# 通用设置
 model_name: wayformer
 
-# model
+# 模型
 use_map_image: False
 use_map_lanes: True
 num_modes: 6
@@ -19,7 +19,7 @@ use_FDEADE_aux_loss: True
 num_queries_dec: 64
 num_queries_enc: 192
 
-# train
+# 训练设置
 max_epochs: 150 #150 #40
 learning_rate: 0.0001 # 0.00075 # 1e-3 for lanegcn
 learning_rate_sched: [ 10, 20, 30, 40, 50 ]

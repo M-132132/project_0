@@ -1,43 +1,42 @@
-
-# exp setting
-exp_name: 'autobot_train' # name that will be used in wandb
+# 实验设置
+exp_name: 'autobot_train' # 在 wandb 中显示的实验名
 # 如果在仓库根目录运行脚本
 ckpt_path: "weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
 
-#ckpt_path: "TrajAttr/weights/TrajAttr_ckpt/autobot_train/best_model.ckpt" # checkpoint path, used for evaluation
-seed: 42 # random seed
-debug: False # debug mode, will use cpu only
-devices: [ 0 ] # gpu ids
+#ckpt_path: "TrajAttr/weights/TrajAttr_ckpt/autobot_train/best_model.ckpt" # 评估用的权重路径
+seed: 42 # 随机种子
+debug: False # 调试模式，仅使用 CPU
+devices: [ 0 ] # GPU 编号
 
-# data related
-load_num_workers: 0 # number of workers for loading data
-#train_data_path: [ "data_samples/nuscenes" ] # list of paths to the training data
-#val_data_path: [ "data_samples/nuscenes" ] # list of paths to the validation data
+# 数据相关
+load_num_workers: 0 # 数据加载进程数
+#train_data_path: [ "data_samples/nuscenes" ] # 训练数据路径列表
+#val_data_path: [ "data_samples/nuscenes" ] # 验证数据路径列表
 
-train_data_path: [ "dataset_traj/scn_split_train" ] # list of paths to the training data
-val_data_path: [ "dataset_traj/scn_split_val" ] # list of paths to the validation data
+train_data_path: [ "dataset_traj/scn_split_train" ] # 训练数据路径列表
+val_data_path: [ "dataset_traj/scn_split_val" ] # 验证数据路径列表
 
 cache_path: "cache"
-max_data_num: [ null ] # maximum number of data for each training dataset, null means all data
-starting_frame: [ 0 ] # history trajectory starts at this frame for each training dataset
-past_len: 21 # history trajectory length, 2.1s
-future_len: 60 # future trajectory length, 6s
-object_type: [ 'VEHICLE' ]#, 'PEDESTRIAN', 'CYCLIST'] # object types included in the training set
-line_type: [ 'lane','stop_sign','road_edge','road_line','crosswalk','speed_bump' ] # line type to be considered in the input
-masked_attributes: [ 'z_axis', 'size' ] # attributes to be masked in the input
-trajectory_sample_interval: 1 # sample interval for the trajectory
-only_train_on_ego: False # only train on AV
-center_offset_of_map: [ 30.0, 0.0 ] # center offset of the map
-use_cache: False # use cache for data loading
-overwrite_cache: False # overwrite existing cache
-store_data_in_memory: False # store data in memory
+max_data_num: [ null ] # 每个训练数据集的最大样本数，null 表示全部
+starting_frame: [ 0 ] # 历史轨迹起始帧索引
+past_len: 21 # 历史轨迹长度，2.1s
+future_len: 60 # 未来轨迹长度，6s
+object_type: [ 'VEHICLE' ]#, 'PEDESTRIAN', 'CYCLIST'] # 参与对象类型
+line_type: [ 'lane','stop_sign','road_edge','road_line','crosswalk','speed_bump' ] # 输入考虑的线类型
+masked_attributes: [ 'z_axis', 'size' ] # 屏蔽的属性
+trajectory_sample_interval: 1 # 轨迹采样间隔
+only_train_on_ego: False # 是否只训练自车
+center_offset_of_map: [ 30.0, 0.0 ] # 地图中心偏移
+use_cache: False # 是否使用缓存
+overwrite_cache: False # 是否覆盖已有缓存
+store_data_in_memory: False # 是否将数据常驻内存
 save_results: True
 
-# official evaluation
+# 官方评估设置
 nuscenes_dataroot: 'data/nuscenes/nuscenes_root'
-eval_nuscenes: False # whether to evaluate with nuscenes evaluation tool
-eval_waymo: False # whether to evaluate with waymo evaluation tool
-eval_argoverse2: False # whether to evaluate with argoverse evaluation tool
+eval_nuscenes: False # 是否使用 nuscenes 评估
+eval_waymo: False # 是否使用 waymo 评估
+eval_argoverse2: False # 是否使用 argoverse 评估
 
 defaults:
   - method: autobot

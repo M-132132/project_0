@@ -383,16 +383,17 @@ def main(cfg):
     avg_loss = total_loss / max(batch_count, 1)
     official_metrics = compute_official_metrics(model, cfg)
     if prediction_records:
+        output_dir = Path(__file__).resolve().parent / 'evaluation_output'
+        output_dir.mkdir(parents=True, exist_ok=True)
         if export_prediction_path is not None:
-            output_path = export_prediction_path
+            output_path = output_dir / Path(export_prediction_path).name
         else:
             model_name = 'model'
             if hasattr(cfg, 'method') and cfg.method is not None and 'model_name' in cfg.method:
                 model_name = str(cfg.method.model_name)
             default_name = f'predictions_{model_name}_world_coords.json'
-            output_path = Path(__file__).resolve().parent / default_name
+            output_path = output_dir / default_name
         output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
         with output_path.open('w', encoding='utf-8') as f:
             json.dump({'predictions': prediction_records}, f, ensure_ascii=False, indent=2)
         print(f"Predictions exported to {output_path}")
@@ -410,8 +411,10 @@ def main(cfg):
             'avg_loss': avg_loss
         }
         
-        results_path = f"evaluation_results_{cfg.method.model_name}.json"
-        with open(results_path, 'w') as f:
+        results_dir = Path(__file__).resolve().parent / 'evaluation_output'
+        results_dir.mkdir(parents=True, exist_ok=True)
+        results_path = results_dir / f"evaluation_results_{cfg.method.model_name}.json"
+        with results_path.open('w', encoding='utf-8') as f:
             # 转换numpy类型为Python类型
             def convert_numpy(obj):
                 if isinstance(obj, dict):
