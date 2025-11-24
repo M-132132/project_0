@@ -22,8 +22,11 @@ except ImportError:  # pragma: no cover - should exist in runtime env
 
 pygame, _ = import_pygame()
 
-DEFAULT_CONFIG_PATH = Path(__file__).with_name("visualization_defaults.yaml")
-PROJECT_ROOT = DEFAULT_CONFIG_PATH.parent.parent.resolve()
+# 工程根目录：vis_scripts 的上一级目录
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# 配置文件新位置：configs/visualization_defaults.yaml
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "visualization_defaults.yaml"
 
 
 def _load_settings() -> dict:
