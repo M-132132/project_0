@@ -13,6 +13,7 @@ from metadrive.utils.utils import import_pygame
 from ground_truth_trajectory_renderer import GroundTruthTrajectoryRenderer
 from prediction_trajectory_renderer import PredictionTrajectoryRenderer
 from attribution_overlay import AttributionOverlay
+from vehicle_id_renderer import VehicleIdRenderer
 
 try:
     import yaml
@@ -23,10 +24,6 @@ pygame, _ = import_pygame()
 
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("visualization_defaults.yaml")
 PROJECT_ROOT = DEFAULT_CONFIG_PATH.parent.parent.resolve()
-
-os.chdir(PROJECT_ROOT)
-print("当前工作目录:", os.getcwd())
-print("当前文件路径:", __file__)
 
 
 def _load_settings() -> dict:
@@ -42,10 +39,12 @@ def _load_settings() -> dict:
         ValueError: 当配置文件内容不是有效的字典格式时抛出
     """
     # 检查是否安装了PyYAML库
+    # 如果未安装，抛出RuntimeError异常提示用户
     if yaml is None:
         raise RuntimeError("PyYAML is required to load visualization defaults.")
 
     # 检查默认配置文件是否存在
+    # 如果文件不存在，抛出FileNotFoundError异常并提供文件路径信息
     if not DEFAULT_CONFIG_PATH.is_file():
         raise FileNotFoundError(
             f"Default config missing: {DEFAULT_CONFIG_PATH}. Please create it before running."
@@ -53,12 +52,15 @@ def _load_settings() -> dict:
 
     try:
         # 尝试读取并解析YAML配置文件
+        # 使用utf-8编码读取文件内容，并使用yaml.safe_load确保安全解析
         data = yaml.safe_load(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
         # 如果解析过程中发生错误，抛出包含详细信息的异常
+        # 使用from exc保留原始异常信息以便调试
         raise ValueError(f"Failed to parse {DEFAULT_CONFIG_PATH}: {exc}") from exc
 
     # 验证配置文件内容是否为字典类型
+    # 确保返回的配置数据是字典格式，否则抛出ValueError
     if not isinstance(data, dict):
         raise ValueError(f"Configuration in {DEFAULT_CONFIG_PATH} must be a mapping.")
 
@@ -74,12 +76,12 @@ def _resolve_path(path_value):
         path_value (str): 需要解析的路径字符串
 
     返回:
-        Path: 解析后的绝对路径对象，如果输入为空则返回None
+        Path: 解析后的绝对路径对象,如果输入为空则返回None
 
     功能:
         1. 检查输入是否为空
         2. 将路径字符串转换为Path对象
-        3. 如果是相对路径，则将其转换为相对于PROJECT_ROOT的绝对路径
+        3. 如果是相对路径,则将其转换为相对于PROJECT_ROOT的绝对路径
         4. 返回解析后的绝对路径
     """
     if not path_value:  # 检查路径值是否为空
@@ -97,6 +99,7 @@ class BaseVisualizationEnv(ScenarioEnv):
         config = dict(config)
         prediction_kwargs = config.pop("prediction_renderer_kwargs", {}) or {}
         attribution_kwargs = config.pop("attribution_config", {}) or {}
+        vehicle_id_kwargs = config.pop("vehicle_id_config", {}) or {}
         super().__init__(config)
 
         self.ground_truth_renderer = GroundTruthTrajectoryRenderer()
@@ -105,11 +108,8 @@ class BaseVisualizationEnv(ScenarioEnv):
             if prediction_kwargs
             else None
         )
-        self.attribution_overlay = (
-            AttributionOverlay(attribution_kwargs)
-            if attribution_kwargs.get('enabled', False)
-            else None
-        )
+        self.attribution_overlay = AttributionOverlay(attribution_kwargs)
+        self.vehicle_id_renderer = VehicleIdRenderer(vehicle_id_kwargs)
 
     def reset(self, seed=None):
         result = super().reset(seed)
@@ -137,49 +137,36 @@ class BaseVisualizationEnv(ScenarioEnv):
 
     def _render_topdown(self, text, *args, **kwargs):
         """
-        自顶向下渲染方法，用于在俯视角度渲染场景。
-        该方法会创建一个增强的更新函数，用于在屏幕更新前绘制额外的信息，如轨迹、预测和归因叠加层。
-        参数:
-            text: 要渲染的文本内容
-            *args: 传递给父类渲染方法的位置参数
-            **kwargs: 传递给父类渲染方法的关键字参数
-        返回:
-            父类渲染方法的结果
+        俯视图渲染：在父类绘制完基础画面后，再叠加轨迹/预测/归因/ID，并刷新屏幕。
         """
-    # 检查是否已经初始化了自顶向下渲染器，如果没有则初始化
         if self.engine.top_down_renderer is None:
             from metadrive.engine.top_down_renderer import TopDownRenderer
 
         # 创建新的自顶向下渲染器实例
             self.engine.top_down_renderer = TopDownRenderer(*args, **kwargs)
 
-    # 保存原始的pygame显示更新函数
-        original_update = pygame.display.update
+        result = super()._render_topdown(text, *args, **kwargs)
 
-    # 定义增强的更新函数，在显示更新前绘制额外信息
-        def enhanced_update(*update_args, **update_kwargs):
-        # 绘制真实轨迹
-            self.ground_truth_renderer.draw_trajectory(self)
+        # 依次绘制所有自定义图层
+        self.ground_truth_renderer.draw_trajectory(self)
 
-        # 如果存在预测渲染器，则绘制预测轨迹
-            if self.prediction_renderer:
-                self.prediction_renderer.draw_trajectory(self)
+        if self.prediction_renderer:
+            self.prediction_renderer.draw_trajectory(self)
 
-        # 如果存在归因叠加层，则绘制归因信息
-            if self.attribution_overlay:
-                self.attribution_overlay.draw(self)
+        if self.attribution_overlay: #  如果存在归因叠加层，则绘制归因信息
+            self.attribution_overlay.draw(self)
 
-        # 调用原始的更新函数
-            return original_update(*update_args, **update_kwargs)
+        if self.vehicle_id_renderer:
+            self.vehicle_id_renderer.draw(self)
 
-    # 临时替换pygame的显示更新函数
-        pygame.display.update = enhanced_update
+        # 如果有窗口，确保将叠加的结果刷新到屏幕
         try:
-        # 调用父类的渲染方法
-            return super()._render_topdown(text, *args, **kwargs)
-        finally:
-        # 无论是否发生异常，都恢复原始的更新函数
-            pygame.display.update = original_update
+            if pygame.display.get_surface() is not None:
+                pygame.display.update()
+        except pygame.error:
+            pass
+
+        return result
 
     def _get_current_scenario_id(self) -> Optional[str]:
         manager = getattr(self.engine, "data_manager", None)
@@ -250,6 +237,9 @@ def main():
     # 归因配置
     attribution_config = settings.get("attribution", {})
     
+    # 车辆ID配置
+    vehicle_id_config = settings.get("vehicle_id", {})
+    
     env_config = {
         "use_render": False,
         "agent_policy": ReplayEgoCarPolicy,
@@ -262,6 +252,7 @@ def main():
         "data_directory": database_path,
         "prediction_renderer_kwargs": prediction_kwargs,
         "attribution_config": attribution_config,
+        "vehicle_id_config": vehicle_id_config,
     }
 
     env = BaseVisualizationEnv(env_config)

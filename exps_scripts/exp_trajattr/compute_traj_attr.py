@@ -25,7 +25,6 @@ from utils.utils_train_traj import set_seed
 from utils.path_manager import path_manager
 from utils_attr.traj_attr.base.traj_attr_base import TrajAttrBase
 
-
 @hydra.main(version_base=None, config_path=str(path_manager.get_config_path()), config_name="traj_attr_base")
 def main(cfg: DictConfig) -> None:
     """主函数：执行轨迹预测归因实验。"""

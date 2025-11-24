@@ -5,7 +5,7 @@ database_path: "dataset_traj/scn_split_val"
 prediction_path: "exps_scripts/unitraj_train_eval/evaluation_output/predictions_autobot_world_coords.json"
 
 # 场景选择
-scenario_index: null  # null表示显示所有场景，或指定整数索引
+scenario_index: null  # null 表示遍历所有场景；也可指定整数索引
 
 # 预测轨迹配置
 max_prediction_modes: 1
@@ -17,3 +17,12 @@ attribution:
   numpy_dir: "exps_res/res_trajattr/autobot_nuscenes/attributions/numpy/AttnLRP"
   opacity: 0.8
   threshold: 0.005
+
+# 车辆 ID 可视化配置
+vehicle_id:
+  enabled: false             # 总开关
+  color_mode: hash           # hash/white：按 ID 稳定着色或统一白字
+  font_min_px: 12            # 字体像素下限
+  font_scale_h: 0.012        # 字体高度占屏幕比例（约 1.2%）
+  thickness: 2               # 文字描边厚度（保留兼容）
+  bg_opacity: 0.6            # 背景半透明黑底不透明度（0~1）

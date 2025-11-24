@@ -63,10 +63,10 @@ class AttributionLoader:
 
     def load(
         self,
-        scenario_id: Optional[str] = None,
-        batch_id: Optional[int] = None,
-        element_idx: int = 0,
-    ) -> Optional[AttributionData]:
+        scenario_id: Optional[str] = None,  # 场景ID，可选参数
+        batch_id: Optional[int] = None,     # 批次ID，可选参数
+        element_idx: int = 0,               # 元素索引，默认为0
+    ) -> Optional[AttributionData]:        # 返回类型为AttributionData或None
         prefix = self.resolve_prefix(scenario_id, batch_id, element_idx)
         if not prefix:
             return None
@@ -95,10 +95,8 @@ class AttributionLoader:
 
     @staticmethod
     def _safe_load(path: Path) -> Optional[np.ndarray]:
+        """Load a NumPy array and surface any issues instead of silently failing."""
         if not path.exists():
-            return None
-        try:
-            return np.load(path)
-        except Exception:
-            return None
-
+            raise FileNotFoundError(f"Attribution file not found: {path}")
+        # Let numpy raise any errors so that they are visible to the caller.
+        return np.load(path)

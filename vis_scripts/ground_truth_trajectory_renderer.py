@@ -56,11 +56,11 @@ class GroundTruthTrajectoryRenderer:
         if scenario is None:
             return []
 
-        tracks = self._get_tracks_dict(scenario)
+        tracks = self._get_tracks_dict(scenario) #  获取场景中的轨迹字典，包括所有的智能体ID以及他们的轨迹数据
         if not tracks:
             return []
 
-        tracks_to_predict = self._get_tracks_to_predict(scenario)
+        tracks_to_predict = self._get_tracks_to_predict(scenario)#获得一个要预测的轨迹ID
         track = self._select_target_track(tracks, tracks_to_predict)
         if not track:
             return []

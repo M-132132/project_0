@@ -20,9 +20,10 @@ weights/
 exps_scripts/unitraj_train_eval/hydra_outputs/
 exps_scripts/unitraj_train_eval/tmp/
 exps_scripts/unitraj_train_eval/evaluation_output/
-exps_scripts/exp_trajattr/tmp
+exps_scripts/exp_trajattr/tmp/
 exps_res/
-exps_scripts/exp_trajattr/hydra_outputs
+exps_scripts/exp_trajattr/hydra_outputs/
+hydra_outputs/
 
 # 忽略该名称所有的文件夹
 __pycache__
