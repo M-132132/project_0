@@ -183,7 +183,14 @@ class Trainer:
         self.current_epoch = checkpoint['epoch']
         self.global_step = checkpoint['global_step']
         self.best_metric = checkpoint.get('best_metric', float('inf'))
-        
+        # self.current_epoch = 1
+
+        #NEW_LR = 5e-5  # 你想用的新学习率
+        # for param_group in self.optimizer.param_groups:
+        #     param_group['lr'] = NEW_LR
+        # if self.local_rank == 0:
+        #     self.logger.log_text(f"Learning rate reset to {NEW_LR}")
+
         if self.local_rank == 0:
             self.logger.log_text(f"Loaded checkpoint from epoch {self.current_epoch}")
     

@@ -21,7 +21,7 @@ train_dir = str(data_dir / "scn_split_train")
 val_dir   = str(data_dir / "scn_split_val")
 
 # 想屏蔽的数据集名字（文件夹名的一部分即可）
-exclude = ["Argoverse", "waymo"]   # 例如 ["v1.0-mini", "waymo_scn"]
+exclude = ["Argoverse", "mnv","nuss7"]   # 例如 ["v1.0-mini", "waymo_scn"]
 
 # 训练集比例
 train_ratio = 0.8
