@@ -582,7 +582,7 @@ class Criterion(nn.Module):
             # return (-biv_gauss_dist.log_prob(data)).sum(-1)  # Gauss
             # need to multiply by masks
             # return (-biv_gauss_dist.log_prob(data_reshaped)).sum(dim=(1, 2))  # Laplace
-            return ((-biv_gauss_dist.log_prob(data_reshaped)).sum(dim=2) * mask).sum(1)  # Laplace
+            return ((biv_gauss_dist.log_prob(data_reshaped)).sum(dim=2) * mask).sum(1)  # Laplace
 
     def nll_loss_multimodes(self, output, data, center_gt_final_valid_idx):
         """
