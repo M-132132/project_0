@@ -412,14 +412,25 @@ class BaseDataset(Dataset):
                                 id in track_infos['object_id']],  # 对象类型
             }
         else:  # 如果有指定预测轨迹
-            sample_list = list(ret['tracks_to_predict'].keys())  # 获取采样列表
-            sample_list = list(set(sample_list))  # 去重
+            
+            
+            #强制使用主车辆
             tracks_to_predict = {
-                'track_index': [track_infos['object_id'].index(id) for id in sample_list if
-                                id in track_infos['object_id']],  # 轨迹索引
-                'object_type': [track_infos['object_type'][track_infos['object_id'].index(id)] for id in sample_list if
-                                id in track_infos['object_id']],  # 对象类型
+                'track_index': [ret['sdc_track_index']],  # 轨迹索引
+                'difficulty': [0],  # 难度
+                'object_type': [MetaDriveType.VEHICLE]  # 对象类型
             }
+
+
+
+            # sample_list = list(ret['tracks_to_predict'].keys())  # 获取采样列表
+            # sample_list = list(set(sample_list))  # 去重
+            # tracks_to_predict = {
+            #     'track_index': [track_infos['object_id'].index(id) for id in sample_list if
+            #                     id in track_infos['object_id']],  # 轨迹索引
+            #     'object_type': [track_infos['object_type'][track_infos['object_id'].index(id)] for id in sample_list if
+            #                     id in track_infos['object_id']],  # 对象类型
+            # }
 
         ret['tracks_to_predict'] = tracks_to_predict  # 设置预测轨迹
 
@@ -804,9 +815,14 @@ class BaseDataset(Dataset):
         for k in range(len(track_index_to_predict)):
             obj_idx = track_index_to_predict[k]  # 获取当前对象索引
 
+            """
+            用于预测未来的那个参考时间点的数据是无效的,
+            代码会执行 continue 跳过该目标。这意味着这个特定的物体将不会被作为训练样本中的“中心对象”或预测目标。
+            """
+
             # 检查对象在当前时间步是否有效
             if obj_trajs_full[obj_idx, current_time_index, -1] == 0:
-                print(f'Warning: obj_idx={obj_idx} is not valid at time step {current_time_index}, scene_id={scene_id}')
+                #print(f'Warning: obj_idx={obj_idx} is not valid at time step {current_time_index}, scene_id={scene_id}')
                 continue  # 如果对象无效，跳过该对象
             # 检查对象类型是否在选定的类型中
             if obj_types[obj_idx] not in selected_type:
@@ -815,9 +831,15 @@ class BaseDataset(Dataset):
             # 将有效的对象轨迹和索引添加到列表中
             center_objects_list.append(obj_trajs_full[obj_idx, current_time_index])
             track_index_to_predict_selected.append(obj_idx)
+
+
+        """
+        这个警告表示在当前的场景scene_id中经过筛选后,没有任何一个目标可以作为有效的“中心对象Center Object来生成训练数据。,
+        直接后果： 函数返回 None, []。这意味着整个场景Scene将被视为无效数据。
+        """    
         # 如果没有找到有效的中心对象，打印警告并返回
         if len(center_objects_list) == 0:
-            print(f'Warning: no center objects at time step {current_time_index}, scene_id={scene_id}')
+            #print(f'Warning: no center objects at time step {current_time_index}, scene_id={scene_id}')
             return None, []
         # 将中心对象列表转换为numpy数组
         center_objects = np.stack(center_objects_list, axis=0)  # (num_center_objects, num_attrs)

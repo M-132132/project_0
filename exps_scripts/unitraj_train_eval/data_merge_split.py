@@ -4,21 +4,25 @@ import shutil
 import re
 import math
 from pathlib import Path
+import sys
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent.parent  # 调整到项目根目录
+sys.path.insert(0, str(project_root))
 from utils.path_manager import path_manager
 
 # ---------------- 配置部分 ----------------
 
 # 源数据集的根目录（绝对路径，因为数据集不在项目里）
-base_dir = r"D:\datasets\nuscenes_scn\nuscenes_Traj"
+base_dir = r"/home/mh/data_convert/data_train_A2_nu_waymo"
 
 # 项目目录下的 data 文件夹（相对路径）
 data_dir = path_manager.root_dir / "dataset_traj"
 data_dir.mkdir(exist_ok=True)
 
 # 输出目录（相对路径，存放在项目 data 下）
-out_dir = str(data_dir / "scn_merged")
-train_dir = str(data_dir / "scn_split_train")
-val_dir   = str(data_dir / "scn_split_val")
+out_dir = str(data_dir / "scn_merged1")
+train_dir = str(data_dir / "scn_split_train1")
+val_dir   = str(data_dir / "scn_split_val1")
 
 # 想屏蔽的数据集名字（文件夹名的一部分即可）
 exclude = ["Argoverse", "mnv","nuss7"]   # 例如 ["v1.0-mini", "waymo_scn"]

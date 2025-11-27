@@ -1,3 +1,13 @@
+
+import sys
+
+from pathlib import Path
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent.parent  # 调整到项目根目录
+sys.path.insert(0, str(project_root))
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
 import os  # 操作系统接口
 import time  # 时间相关功能
 import torch  # PyTorch深度学习框架

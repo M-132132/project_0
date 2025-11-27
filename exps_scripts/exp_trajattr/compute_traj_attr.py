@@ -3,6 +3,14 @@
 
 运行模型、计算归因，并将归因结果保存为 `.npy` 文件。
 """
+from pathlib import Path
+import sys
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent.parent  # 调整到项目根目录
+sys.path.insert(0, str(project_root))
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+print(sys.path)
 
 from datetime import datetime
 from pathlib import Path
