@@ -1,11 +1,11 @@
 from models.autobot.autobot import AutoBotEgo
 # from models.mtr.MTR import MotionTransformer
-# from models.wayformer.wayformer import Wayformer
+from models.wayformer.wayformer import Wayformer
 # from models.smart.smart import SMART
 
 __all__ = {
     'autobot': AutoBotEgo,
-    # 'wayformer': Wayformer,
+    'wayformer': Wayformer,
     # 'MTR': MotionTransformer,
     # 'SMART': SMART,
 }

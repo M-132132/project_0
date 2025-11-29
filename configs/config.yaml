@@ -1,8 +1,8 @@
 # 实验设置
-exp_name: 'autobot_train' # 在 wandb 中显示的实验名
+exp_name: 'wayformer_train' # 在 wandb 中显示的实验名
 # 如果在仓库根目录运行脚本
-ckpt_path: "weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
-
+# ckpt_path: "weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
+ckpt_path: null
 #ckpt_path: "TrajAttr/weights/TrajAttr_ckpt/autobot_train/best_model.ckpt" # 评估用的权重路径
 seed: 42 # 随机种子
 debug: False # 调试模式，仅使用 CPU
@@ -39,7 +39,8 @@ eval_waymo: False # 是否使用 waymo 评估
 eval_argoverse2: False # 是否使用 argoverse 评估
 
 defaults:
-  - method: autobot
+  # - method: autobot
+  - method: wayformer
 
 hydra:
   run:

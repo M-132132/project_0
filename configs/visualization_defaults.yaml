@@ -20,9 +20,12 @@ attribution:
 
 # 车辆 ID 可视化配置
 vehicle_id:
-  enabled: false             # 总开关
+  enabled: true             # 总开关
   color_mode: hash           # hash/white：按 ID 稳定着色或统一白字
   font_min_px: 12            # 字体像素下限
   font_scale_h: 0.012        # 字体高度占屏幕比例（约 1.2%）
   thickness: 2               # 文字描边厚度（保留兼容）
-  bg_opacity: 0.6            # 背景半透明黑底不透明度（0~1）
+  bg_opacity: 0.6 
+  show_speed: true
+  show_acceleration: true
+           # 背景半透明黑底不透明度（0~1）
