@@ -13,3 +13,22 @@
 /exps_scripts/unitraj_train_eval/evaluation_output/
 
 /exps_res/
+
+# 忽略 Python 编译缓存
+__pycache__/
+*.pyc
+
+# 忽略日志文件
+*.log
+logs/
+hydra_outputs/
+
+# 忽略临时数据
+tmp/
+*.pkl
+
+# 忽略 VS Code 个人设置 (可选)
+.vscode/
+
+# 忽略系统文件
+.DS_Store

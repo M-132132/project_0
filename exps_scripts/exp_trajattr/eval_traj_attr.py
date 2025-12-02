@@ -1,19 +1,3 @@
-"""
-轨迹预测归因评估独立启动脚本
-exps_scripts/exp_trajattr/eval_traj_attr.py
-
-功能：
-1. 加载训练好的模型和验证数据集。
-2. 从磁盘读取已保存的 numpy 格式归因结果。
-3. 运行 AttributionEvaluator 计算归因指标 (MoRF, LeRF, Sen-n, etc.)。
-4. 保存评估结果到 JSON 文件。
-
-使用方法：
-python exps_scripts/exp_trajattr/eval_traj_attr.py \
-    attribution.load_path="/path/to/your/saved/attributions/numpy" \
-    evaluate=True
-"""
-
 import sys
 import os
 import json
@@ -24,7 +8,6 @@ from pathlib import Path
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import re
 
 # 添加项目根目录到环境变量
 current_file = Path(__file__).resolve()
@@ -35,7 +18,6 @@ from models import build_model
 from utils_datasets_traj import build_dataset
 from utils.utils_train_traj import set_seed
 from utils.path_manager import path_manager
-# [注意] 这里根据您的要求修改了导入路径
 from utils_attr.attr_metric.attr_evaluation import AttributionEvaluator
 
 class TrajAttrEvalExperiment:
@@ -46,12 +28,10 @@ class TrajAttrEvalExperiment:
         )
         set_seed(config.get("seed", 42))
         
-        # 验证必要的配置
         self.attr_load_path = Path(config.attribution.get("load_path", ""))
         if not self.attr_load_path.exists():
-            raise FileNotFoundError(f"归因结果路径不存在: {self.attr_load_path}\n请在命令行通过 attribution.load_path=... 指定")
+            raise FileNotFoundError(f"归因结果路径不存在: {self.attr_load_path}\n请指定 attribution.load_path")
 
-        # 设置结果保存路径 (默认保存在归因加载目录的同级 metrics 目录下)
         self.save_dir = self.attr_load_path.parent / "metrics_evaluation"
         self.save_dir.mkdir(parents=True, exist_ok=True)
         print(f"评估结果将保存至: {self.save_dir}")
@@ -62,11 +42,9 @@ class TrajAttrEvalExperiment:
         self.eval_results_history = {}
 
     def load_model_and_data(self):
-        """加载模型和数据"""
         print(f"正在加载模型: {self.config.method.model_name} ...")
         self.model = build_model(self.config).to(self.device)
         
-        # 加载权重
         ckpt_path = self.config.get("ckpt_path")
         if ckpt_path and Path(ckpt_path).exists():
             checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=False)
@@ -74,16 +52,16 @@ class TrajAttrEvalExperiment:
             self.model.load_state_dict(state_dict, strict=False)
             print("模型权重加载成功")
         else:
-            print(f"警告: 未找到权重文件 {ckpt_path}，使用随机初始化 (可能会影响 MoRF/LeRF 评估)")
+            print(f"警告: 未找到权重文件 {ckpt_path}")
 
         self.model.eval()
 
-        # 加载数据
         print("正在构建验证数据集...")
         val_dataset = build_dataset(self.config, val=True)
+        # 注意：如果显存不足，可以在这里强制 batch_size=1
         self.val_loader = DataLoader(
             val_dataset,
-            batch_size=self.config.method.get("eval_batch_size", 1),
+            batch_size=self.config.method.get("eval_batch_size", 1), 
             num_workers=self.config.get("load_num_workers", 0),
             shuffle=False,
             drop_last=False,
@@ -93,64 +71,76 @@ class TrajAttrEvalExperiment:
         print(f"数据集大小: {len(val_dataset)} 样本, {len(self.val_loader)} 批次")
 
     def init_evaluator(self):
-        """初始化评估器"""
         print("初始化归因评估器...")
         self.evaluator = AttributionEvaluator(self.model)
 
-    def _find_attribution_file(self, batch, method_name):
+    def _get_file_path(self, scenario_id, method_name):
         """
-        [修改] 根据 batch 中的 scenario_id 查找对应的 .npy 文件
-        文件名示例: scene_00a8dc97-401a-4456-8f8c-f2dfbecbe343_AttnLRP_map_polylines.npy
+        [修复] 精确构造文件名
+        文件名格式通常为: scene_{id}_{method}_obj_trajs.npy
         """
-        # 1. 从 batch 中提取 scenario_id
-        try:
-            input_dict = batch.get('input_dict', {})
-            scenario_ids = input_dict.get('scenario_id', [])
+        scenario_id_str = str(scenario_id)
+        
+        # 1. 尝试标准命名格式 (compute_traj_attr.py 的默认格式)
+        fname = f"scene_{scenario_id_str}_{method_name}_obj_trajs.npy"
+        fpath = self.attr_load_path / fname
+        if fpath.exists():
+            return fpath
             
-            if len(scenario_ids) == 0:
-                print(f"[Warning] 当前 Batch 中没有找到 scenario_id")
-                return None
-            
-            # 取第一个样本的 ID (假设 eval_batch_size=1)
-            # 如果是 Tensor 转 string，如果是 list 直接取
-            target_id = scenario_ids[0]
-            if isinstance(target_id, torch.Tensor):
-                target_id = str(target_id.item())
-            else:
-                target_id = str(target_id)
+        # 2. 备选：尝试不带 'scene_' 前缀或其他变体 (视具体保存逻辑而定)
+        # 这里为了保险，也可以加一个模糊搜索，但必须确保 ID 精确
+        # 为了性能，建议保持上面的精确匹配。如果找不到，说明保存命名有问题。
+        return None
+
+    def _load_batch_attributions(self, batch, method_name):
+        """
+        [新增] 加载整个 Batch 的归因结果并堆叠
+        """
+        input_dict = batch.get('input_dict', {})
+        scenario_ids = input_dict.get('scenario_id', [])
+        
+        attr_list = []
+        valid_indices = [] # 记录成功加载的索引，万一有文件缺失
+        
+        for idx, sc_id in enumerate(scenario_ids):
+            if isinstance(sc_id, torch.Tensor):
+                sc_id = sc_id.item()
                 
-        except Exception as e:
-            print(f"[Error] 解析 scenario_id 失败: {e}")
+            fpath = self._get_file_path(sc_id, method_name)
+            
+            if fpath is None:
+                # 找不到文件，打印警告 (只打一次避免刷屏)
+                if idx == 0: 
+                    print(f"[Warning] 找不到文件: ID={sc_id}, Method={method_name}")
+                continue
+                
+            try:
+                # 加载单个样本归因 [N, T, F]
+                attr_np = np.load(fpath)
+                attr_list.append(attr_np)
+                valid_indices.append(idx)
+            except Exception as e:
+                print(f"[Error] 加载文件失败 {fpath}: {e}")
+
+        if not attr_list:
             return None
 
-        # 2. 并在目录下搜索包含该 ID 的文件
-        # 文件名通常包含: scenario_id 和 method_name
-        # 且我们需要 'obj_trajs' 的文件来进行评估
-        target_files = []
-        
-        # 遍历目录 (为了性能，建议实际部署时先建立索引，这里用简单遍历)
-        for f in self.attr_load_path.glob("*.npy"):
-            fname = f.name
+        # 堆叠成 Batch: [B_loaded, N, T, F]
+        # 注意：如果 Batch 里有文件缺失，这里的 Batch 维度会小于原始 Batch
+        # 严格来说应该报错或填充 0，但这里我们假设文件都是齐的
+        try:
+            batch_attr_np = np.stack(attr_list, axis=0) 
+        except ValueError as e:
+            print(f"[Error] 堆叠归因数组失败 (可能形状不一致): {e}")
+            return None
             
-            # 核心匹配逻辑：文件名必须包含 ID 和 方法名
-            if target_id in fname and method_name in fname:
-                target_files.append(f)
-        
-        # 3. 筛选出 obj_trajs 文件 (评估重点)
-        obj_traj_files = [f for f in target_files if 'obj_trajs' in f.name]
-        
-        if obj_traj_files:
-            # print(f"[Debug] Found file: {obj_traj_files[0].name}") 
-            return obj_traj_files[0]
-        
-        # 如果没找到 obj_trajs 但有其他文件(比如 map)，尝试返回(可能导致 key 错误)
-        # 或者直接返回 None
-        if target_files:
-            # print(f"[Debug] Found related file (not obj_trajs): {target_files[0].name}")
-            return target_files[0]
-            
-        print(f"[Warning] 未找到 ID={target_id}, Method={method_name} 的 obj_trajs 归因文件")
-        return None
+        # 如果有文件缺失，我们需要对齐 batch 数据（这比较复杂）。
+        # 这里简单起见：如果找到的数量 != batch size，建议跳过该 batch 以免指标计算错位
+        if len(attr_list) != len(scenario_ids):
+            print(f"[Warning] Batch 文件不全 ({len(attr_list)}/{len(scenario_ids)})，跳过此 Batch")
+            return None
+
+        return batch_attr_np
 
     def run(self):
         self.load_model_and_data()
@@ -161,62 +151,50 @@ class TrajAttrEvalExperiment:
         print(f"将要评估的方法: {methods}")
         print(f"将要计算的指标: {metrics_to_compute}")
 
-        batch_limit = self.config.attribution.get("batch_limit", 999999)
-        
-        # 开始循环评估
+        # [修改 1] 获取配置中的 limit，默认跑完全部 (999999)
+        # 您可以在命令行使用 attribution.batch_limit=12 来控制
+        limit = self.config.attribution.get("batch_limit", 999999) 
+        print(f"评估 Batch 限制: {limit}")
+
         for batch_idx, batch in enumerate(tqdm(self.val_loader, desc="Evaluating")):
-            if batch_idx >= batch_limit:
+            # [修改 2] 达到限制时停止
+            if batch_idx >= limit:
+                print(f"已达到 Batch 限制 ({limit})，停止评估。")
                 break
             
-            # 将数据移动到设备
             batch = self._move_to_device(batch, self.device)
             
-            # 对每个指定的归因方法进行评估
             for method_name in methods:
-                # [修改关键点] 传入完整 batch，以便内部提取 scenario_id
-                attr_file = self._find_attribution_file(batch, method_name)
+                # 加载整个 Batch 的归因数据
+                attr_batch_np = self._load_batch_attributions(batch, method_name)
                 
-                if attr_file is None:
-                    # 如果没找到文件，已经在 _find_attribution_file 里打印了 Warning，这里直接跳过
+                # 如果因为文件缺失导致返回 None，则跳过
+                if attr_batch_np is None:
                     continue
                 
                 try:
-                    # 1. 加载 numpy 数据
-                    attr_numpy = np.load(attr_file)
-                    
-                    # [新增] 维度检查与适配
-                    # 某些保存逻辑可能保存为 [Num_Agents, Time, Feat] (缺少 Batch 维)
-                    # 评估器期望 [Batch, Num_Agents, Time, Feat]
-                    if attr_numpy.ndim == 3:
-                        attr_numpy = attr_numpy[np.newaxis, ...]
-                    
-                    # 构造 attributions 字典 (评估器需要这个格式)
-                    # 默认加载的是 obj_trajs 的文件
                     attributions = {
-                        'obj_trajs': torch.from_numpy(attr_numpy).to(self.device)
+                        'obj_trajs': torch.from_numpy(attr_batch_np).to(self.device)
                     }
                     
-                    # 2. 运行评估
                     metrics_result = self.evaluator.evaluate(
                         batch=batch,
                         attributions=attributions,
                         metrics=metrics_to_compute,
                         target_key='obj_trajs',
-                        steps=10,
+                        steps=10, 
                         num_subsets=20
                     )
                     
-                    # 3. 记录结果
                     if method_name not in self.eval_results_history:
                         self.eval_results_history[method_name] = []
                     self.eval_results_history[method_name].append(metrics_result)
                     
                 except Exception as e:
-                    print(f"[Error] 评估 Batch {batch_idx} (Method: {method_name}) 时出错: {e}")
+                    print(f"[Error] Batch {batch_idx} Method {method_name}: {e}")
                     import traceback
                     traceback.print_exc()
 
-        # 所有批次结束后，保存最终结果
         self._save_results()
 
     def _save_results(self):
@@ -232,25 +210,19 @@ class TrajAttrEvalExperiment:
 
         with open(save_path, 'w', encoding='utf-8') as f:
             json.dump(convert_to_serializable(self.eval_results_history), f, indent=2, ensure_ascii=False)
-        
         print(f"\n[完成] 评估结束，结果已保存至: {save_path}")
 
     def _move_to_device(self, batch, device):
-        if isinstance(batch, torch.Tensor):
-            return batch.to(device)
-        if isinstance(batch, dict):
-            return {key: self._move_to_device(value, device) for key, value in batch.items()}
-        if isinstance(batch, list):
-            return [self._move_to_device(item, device) for item in batch]
+        if isinstance(batch, torch.Tensor): return batch.to(device)
+        if isinstance(batch, dict): return {k: self._move_to_device(v, device) for k, v in batch.items()}
+        if isinstance(batch, list): return [self._move_to_device(i, device) for i in batch]
         return batch
 
 @hydra.main(version_base=None, config_path=str(path_manager.get_config_path()), config_name="traj_attr_base")
 def main(cfg: DictConfig):
     OmegaConf.set_struct(cfg, False)
-    # 确保合并了方法的具体配置 (如 autobot.yaml)
     if hasattr(cfg, 'method'):
         cfg = OmegaConf.merge(cfg, cfg.method)
-    
     experiment = TrajAttrEvalExperiment(cfg)
     experiment.run()
 
