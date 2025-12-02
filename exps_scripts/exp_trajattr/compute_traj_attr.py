@@ -32,10 +32,7 @@ from utils_datasets_traj import build_dataset
 from utils.utils_train_traj import set_seed
 from utils.path_manager import path_manager
 from utils_attr.traj_attr.base.traj_attr_base import TrajAttrBase
-#新增
-from utils_attr.attr_metric.attr_evaluation import AttributionEvaluator
-import json
-import numpy as np
+
 
 @hydra.main(version_base=None, config_path=str(path_manager.get_config_path()), config_name="traj_attr_base")
 def main(cfg: DictConfig) -> None:
@@ -198,17 +195,6 @@ class TrajAttrExperiment:
         method_name = self.config.method.get("model_name", "unknown")
     # 创建归因计算器实例，传入模型、配置和保存路径
         self.attributor = TrajAttrBase(self.model, self.config, save_paths=self.paths)
-
-
-        # [新增] 初始化评估器
-        # 建议在配置文件中加一个开关，例如 cfg.evaluation.enabled = True
-        if self.config.get("evaluate", False): 
-            print("初始化归因评估器...")
-            self.evaluator = AttributionEvaluator(self.model)
-            # 用于存储所有批次的评估结果，最后汇总
-            self.eval_results_history = {}
-
-
     # 打印创建的归因计算器信息
         print(f"创建归因计算器: {method_name}")
 
@@ -228,55 +214,48 @@ class TrajAttrExperiment:
         return self.compute_batch_attributions()  # 计算并返回批次归因结果
 
     def compute_batch_attributions(self) -> int:
+
         """
-        计算并保存一批样本的归因分析结果，并可选地执行评估指标计算。
-        
+        计算并保存一批样本的归因分析结果
+
+        该方法遍历验证数据加载器，对每个批次计算归因分析，直到达到配置的批次限制。
+        使用tqdm进度条显示处理进度，并将数据移动到指定设备上进行计算。
+
         Returns:
             int: 已处理的批次数量
         """
         batch_limit = self.config.attribution.batch_limit  # 获取配置的批次限制数量
         processed = 0  # 初始化已处理批次计数器
 
-        # 使用tqdm创建进度条，遍历验证数据加载器
+    # 使用tqdm创建进度条，遍历验证数据加载器
         for batch_idx, batch in enumerate(
             tqdm(self.val_loader, desc="Computing attributions", dynamic_ncols=True)
         ):
-            # 如果当前批次索引超过配置的限制，则停止处理
+        # 如果当前批次索引超过配置的限制，则停止处理
             if batch_idx >= batch_limit:
                 break
 
-            # 将批次数据移动到指定设备（如GPU）
+        # 将批次数据移动到指定设备（如GPU）
             batch = self._move_to_device(batch, self.device)
 
-            # 启用梯度计算，以便进行归因分析
+        # 启用梯度计算，以便进行归因分析
             with torch.enable_grad():
-                # 准备元数据
+            # 计算并保存当前批次的归因分析结果
                 metadata = {'batch_id': batch_idx}
                 try:
                     if isinstance(batch, dict) and 'input_dict' in batch and isinstance(batch['input_dict'], dict):
                         metadata['scenario_ids'] = batch['input_dict'].get('scenario_id', []) or []
                 except Exception:
                     metadata['scenario_ids'] = []
-                
-                # [修改] 调用 compute_and_save_attribution 并接收返回的归因结果
-                # 注意：这需要 TrajAttrBase 类已修改为返回结果
-                attributions_dict = self.attributor.compute_and_save_attribution(
+                self.attributor.compute_and_save_attribution(
                     batch,
                     methods=self.config.attribution.methods,
                     metadata=metadata,
                 )
 
-                # [新增] 执行评估逻辑
-                if self.config.get("evaluate", False):
-                    self._run_evaluation(batch, attributions_dict)
-
             processed += 1  # 增加已处理批次计数
 
-        # [新增] 所有批次处理完成后，保存汇总的评估结果
-        if self.config.get("evaluate", False):
-            self._save_evaluation_results()
-
-        return processed
+        return processed  # 返回已处理的批次总数
 
     def _move_to_device(self, batch, device):
         """
@@ -296,77 +275,6 @@ class TrajAttrExperiment:
             # 如果是列表，递归处理每个元素，保持列表结构
             return [self._move_to_device(item, device) for item in batch]
         return batch  # 其他类型数据直接返回，不做处理exps_scripts/exp_trajattr/compute_traj_attr.py
-
-
-    def _run_evaluation(self, batch, attributions_dict):
-        """
-        [新增] 辅助方法：对当前批次的归因结果运行评估指标
-        """
-        # 获取需要计算的指标列表，默认为 MoRF 和 LeRF
-        metrics_to_compute = self.config.get("eval_metrics", ['morf', 'lerf', 'sen_n'])
-        
-        for method_name, attrs_numpy in attributions_dict.items():
-            # 准备归因数据：将 numpy 转回 tensor，因为评估器内部模型推理需要 tensor
-            # 假设 attrs_numpy 结构为 {'obj_trajs': ndarray, ...}
-            attrs_tensor = {
-                k: torch.from_numpy(v).to(self.device) if isinstance(v, np.ndarray) else v 
-                for k, v in attrs_numpy.items()
-            }
-            
-            # 调用评估器的 evaluate 接口
-            # target_key='obj_trajs' 表示我们主要评估周围车辆的重要性
-            try:
-                metrics_result = self.evaluator.evaluate(
-                    batch=batch,
-                    attributions=attrs_tensor,
-                    metrics=metrics_to_compute,
-                    target_key='obj_trajs',
-                    steps=10,  # 移除步数，可配置
-                    num_subsets=20 # Sen-n 采样次数，可配置
-                )
-                
-                # 初始化该方法的历史记录列表
-                if method_name not in self.eval_results_history:
-                    self.eval_results_history[method_name] = []
-                
-                # 添加当前批次结果
-                self.eval_results_history[method_name].append(metrics_result)
-                
-            except Exception as e:
-                print(f"Warning: Evaluation failed for batch in method {method_name}: {e}")
-
-    def _save_evaluation_results(self):
-        """
-        [新增] 辅助方法：保存最终的评估指标到 JSON 文件
-        """
-        save_path = self.paths['attributions'] / "evaluation_metrics.json"
-        
-        # 辅助函数：将 numpy 类型转换为 Python 原生类型以便 JSON 序列化
-        def convert_to_serializable(obj):
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            if isinstance(obj, (np.float32, np.float64)):
-                return float(obj)
-            if isinstance(obj, (np.int32, np.int64)):
-                return int(obj)
-            if isinstance(obj, dict):
-                return {k: convert_to_serializable(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [convert_to_serializable(i) for i in obj]
-            return obj
-
-        # 转换并保存数据
-        try:
-            final_data = convert_to_serializable(self.eval_results_history)
-            with open(save_path, 'w', encoding='utf-8') as f:
-                json.dump(final_data, f, indent=2, ensure_ascii=False)
-            print(f"评估指标已保存至: {save_path}")
-        except Exception as e:
-            print(f"Error saving evaluation results: {e}")
-
-
-
-
 
 if __name__ == "__main__":
     main()
