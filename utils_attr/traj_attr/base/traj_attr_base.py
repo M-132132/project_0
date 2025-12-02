@@ -165,11 +165,19 @@ class TrajAttrBase:
         # 根据方法计算归因
         
         if method == 'GuidedIG' or method == 'Guided-IG':
-            from ..methods.guided_ig_attr import GuidedIGAttribution
+
+
+            """
+            from utils_attr.traj_attr.methods.guided_ig_attr import GuidedIGAttribution导入有问题
+
+
+            """
+
+            #from ..methods.guided_ig_attr import GuidedIGAttribution
             # 从配置中提取GuidedIG特定参数
             method_config = self.config.get('guided_ig_config', {}).copy()
             method_config.update(kwargs)  # kwargs覆盖配置文件参数
-            attr_calculator = GuidedIGAttribution(self, **method_config)
+            #attr_calculator = GuidedIGAttribution(self, **method_config)
             attributions = attr_calculator.compute_attribution(
                 attribution_inputs, static_inputs, input_tensors)
 
@@ -325,18 +333,46 @@ class TrajAttrBase:
     # 返回配置的副本以避免外部修改
         return attnlrp_cfg.copy()
 
+    # def compute_and_save_attribution(self, batch: Dict, methods: List[str] = None,
+    #                                  metadata: Optional[Dict] = None) -> Dict:
+    #     """
+    #     计算并保存归因结果的便利函数
+        
+    #     Args:
+    #         batch: 输入批量数据
+    #         methods: 归因方法列表
+    #         metadata: 额外元数据
+            
+    #     Returns:
+    #         all_attributions: 所有方法的归因结果
+    #     """
+    #     if methods is None:
+    #         methods = self.attr_methods
+            
+    #     all_attributions = {}
+        
+    #     for method in methods:
+    #         print(f"计算 {method} 归因...")
+    #         attributions = self.compute_attribution(batch, method)
+    #         all_attributions[method] = attributions
+            
+    #         # 保存结果
+    #         self.save_attribution_results(attributions, batch, method, metadata)
+    #     return all_attributions
+
     def compute_and_save_attribution(self, batch: Dict, methods: List[str] = None,
-                                     metadata: Optional[Dict] = None) -> Dict:
+                                     metadata: Optional[Dict] = None) -> Dict[str, Dict]:
         """
-        计算并保存归因结果的便利函数
+        计算并保存归因结果的便利函数，并返回结果供评估使用。
         
         Args:
-            batch: 输入批量数据
-            methods: 归因方法列表
-            metadata: 额外元数据
+            batch: 输入批量数据 (包含 input_dict, static_dict 等)
+            methods: 归因方法列表 (如 ['AttnLRP'])。若为 None 则使用 self.attr_methods。
+            metadata: 额外元数据 (如 batch_id, scenario_id)，用于文件命名或日志。
             
         Returns:
-            all_attributions: 所有方法的归因结果
+            all_attributions: 所有方法的归因结果字典。
+                              格式: { 'MethodName': {'feature_name': Tensor, ...}, ... }
         """
         if methods is None:
             methods = self.attr_methods
@@ -344,10 +380,18 @@ class TrajAttrBase:
         all_attributions = {}
         
         for method in methods:
-            print(f"计算 {method} 归因...")
+            # print(f"计算 {method} 归因...") 
+            
+            # 1. 计算归因 (返回 Tensor 字典)
+            # self.compute_attribution 负责分发到具体的归因器 (如 AttnLRPAttribution)
             attributions = self.compute_attribution(batch, method)
+            
+            # 2. 收集结果 (用于返回给主循环进行评估)
+            # 注意：此处保留 Tensor 格式，方便后续 Evaluator 直接在 GPU 上进行 Mask 操作
             all_attributions[method] = attributions
             
-            # 保存结果
+            # 3. 保存结果 (保存到磁盘)
+            # 假设 save_attribution_results 内部会处理 Tensor 到 Numpy 的转换
             self.save_attribution_results(attributions, batch, method, metadata)
+            
         return all_attributions
