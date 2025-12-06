@@ -40,3 +40,21 @@ class SparsenessMetric(BaseMetric):
         denominator = n * torch.sum(sorted_x, dim=1)
         
         return numerator / denominator
+    
+
+
+class SparsenessFeatureMetric(SparsenessMetric):
+    """
+    [新增] 特征级稀疏度指标。
+    将所有特征展平后计算基尼系数，评估归因是否集中在极少数坐标特征上。
+    """
+    def compute(self, agent_scores: torch.Tensor, **kwargs) -> float:
+        # agent_scores: [Batch, Num_Agents, Num_Features]
+        batch_size = agent_scores.shape[0]
+        
+        # 1. 展平为 [Batch, Num_Agents * Num_Features]
+        # 这样就是在所有特征维度上计算分布的稀疏性
+        flat_scores = agent_scores.reshape(batch_size, -1)
+        
+        # 2. 调用父类的计算逻辑
+        return super().compute(flat_scores, **kwargs)

@@ -30,3 +30,19 @@ class ComplexityMetric(BaseMetric):
         probs = scores / x_sum
         entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=1)
         return entropy
+    
+
+class ComplexityFeatureMetric(ComplexityMetric):
+    """
+    [新增] 特征级复杂度指标。
+    将所有特征展平后计算信息熵。
+    """
+    def compute(self, agent_scores: torch.Tensor, **kwargs) -> float:
+        # agent_scores: [Batch, Num_Agents, Num_Features]
+        batch_size = agent_scores.shape[0]
+        
+        # 1. 展平为 [Batch, Num_Agents * Num_Features]
+        flat_scores = agent_scores.reshape(batch_size, -1)
+        
+        # 2. 调用父类的计算逻辑
+        return super().compute(flat_scores, **kwargs)

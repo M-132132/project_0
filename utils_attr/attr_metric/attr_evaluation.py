@@ -3,40 +3,55 @@ import numpy as np
 from typing import Dict, List, Optional, Union, Any
 import copy
 
-from .morf import MoRFMetric
-from .lerf import LeRFMetric
-from .sen_n import SenNMetric
-from .sparseness import SparsenessMetric
-from .complexity import ComplexityMetric
+# 导入所有基础指标和特征级指标
+from .morf import MoRFMetric, MoRFFeatureMetric
+from .lerf import LeRFMetric, LeRFFeatureMetric
+from .sen_n import SenNMetric, SenNFeatureMetric
+from .sparseness import SparsenessMetric, SparsenessFeatureMetric # [新增导入]
+from .complexity import ComplexityMetric, ComplexityFeatureMetric # [新增导入]
 
 class AttributionEvaluator:
     """
     轨迹预测归因评估器。
-    
-    该类作为归因指标计算的调度中心。它本身不实现具体的指标计算逻辑，
-    而是动态地实例化并调用相应的指标类（如 MoRFMetric, SparsenessMetric 等）来完成计算。
     """
     
     def __init__(self, model: torch.nn.Module):
         self.model = model
         self.model.eval()
+        # 注册所有计算器
         self._metric_calculators = {
+            # 动态指标
             'morf': MoRFMetric(model),
+            'morf_feature': MoRFFeatureMetric(model),
+            
             'lerf': LeRFMetric(model),
+            'lerf_feature': LeRFFeatureMetric(model),
+            
             'sen_n': SenNMetric(model),
+            'sen_n_feature': SenNFeatureMetric(model),
+            
+            # 静态分布指标
             'sparseness': SparsenessMetric(model),
+            'sparseness_feature': SparsenessFeatureMetric(model), # [注册]
+            
             'complexity': ComplexityMetric(model),
+            'complexity_feature': ComplexityFeatureMetric(model), # [注册]
         }
 
     def evaluate(self, 
-                 batch: Dict,                  # 输入数据批次
-                 attributions: Dict[str, np.ndarray],   # 特征归因字典
-                 metrics: List[str] = ['morf', 'lerf', 'sen_n'],  # 要计算的指标列表
-                 target_key: str = 'obj_trajs',  # 目标键名，用于从归因字典中提取相关数据
-
+                 batch: Dict,                  
+                 attributions: Dict[str, np.ndarray],   
+                 metrics: List[str] = ['morf', 'lerf', 'sen_n'],
+                 target_key: str = 'obj_trajs',
+                 steps: int = 10,              
+                 num_subsets: int = 20,        
                  
-                 steps: int = 10,              # 计算动态指标时的步数
-                 num_subsets: int = 20) -> Dict[str, Any]:  # 子集数量，用于计算Sen-n指标
+                 # === 控制参数 ===
+                 evaluation_mode: str = 'agent',  # 'agent' 或 'feature'
+                 noise_std: float = 1.0,
+                 metric_type: str = 'loss',
+                 perturb_mode: str = 'constant'
+                 ) -> Dict[str, Any]:
         
         results = {}
         if not metrics or target_key not in attributions:
@@ -47,32 +62,47 @@ class AttributionEvaluator:
         attr_val = attributions[target_key]
         attr_tensor = torch.from_numpy(attr_val).to(device) if isinstance(attr_val, np.ndarray) else attr_val.to(device)
             
-        # 2. 聚合归因分数: [B, N, T, F] -> [B, N]
-        if attr_tensor.ndim >= 3:
-            reduce_dims = tuple(range(2, attr_tensor.ndim))
-            agent_scores = attr_tensor.abs().sum(dim=reduce_dims)
+        # 2. 聚合归因分数
+        if evaluation_mode == 'feature':
+            # 特征级评估: [B, N, T, F] -> [B, N, F]
+            # (如果是 4D 张量，对时间维度 T 求和)
+            if attr_tensor.ndim == 4:
+                agent_scores = attr_tensor.abs().sum(dim=2) 
+                # 仅取前两个特征 (x, y)，防止 mask 干扰
+                if agent_scores.shape[-1] > 2:
+                    agent_scores = agent_scores[..., :2]
+            else:
+                agent_scores = attr_tensor.abs()
         else:
-            agent_scores = attr_tensor.abs()
+            # 整车级评估: [B, N, T, F] -> [B, N]
+            if attr_tensor.ndim >= 3:
+                reduce_dims = tuple(range(2, attr_tensor.ndim))
+                agent_scores = attr_tensor.abs().sum(dim=reduce_dims)
+            else:
+                agent_scores = attr_tensor.abs()
 
-        # 3. 准备动态指标所需的参数
-        dynamic_metrics = {'morf', 'lerf', 'sen_n'}
-        needs_dynamic = any(metric in dynamic_metrics for metric in metrics)
+        # 3. 准备参数
         base_loss = None
-        ego_indices = None
+        ego_indices = batch['input_dict'].get('track_index_to_predict', None)
 
-        if needs_dynamic:
-            # 仅在需要时计算 base_loss
+        if metric_type == 'loss':
             base_loss = self._compute_loss(batch)
             results['base_loss'] = base_loss
-            # 获取自车索引，用于在扰动时保护自车
-            ego_indices = batch['input_dict'].get('track_index_to_predict', None)
 
-        # 4. 遍历并计算所有请求的指标
+        # 4. 遍历计算指标
         for metric_name in metrics:
-            if metric_name in self._metric_calculators:
-                calculator = self._metric_calculators[metric_name]
+            # 自动切换计算器名称
+            calculator_name = metric_name
+            if evaluation_mode == 'feature':
+                # 简单的后缀映射逻辑
+                feature_name = f"{metric_name}_feature"
+                if feature_name in self._metric_calculators:
+                    calculator_name = feature_name
+            
+            if calculator_name in self._metric_calculators:
+                calculator = self._metric_calculators[calculator_name]
                 
-                # 准备传递给 compute 方法的参数
+                # 构建参数包
                 params = {
                     'batch': batch,
                     'agent_scores': agent_scores,
@@ -81,30 +111,28 @@ class AttributionEvaluator:
                     'num_subsets': num_subsets,
                     'base_loss': base_loss,
                     'ego_indices': ego_indices,
+                    'noise_std': noise_std,
+                    'metric_type': metric_type,
+                    'perturb_mode': perturb_mode
                 }
                 
                 try:
-                    # 调用具体指标的 compute 方法
                     results[metric_name] = calculator.compute(**params)
                 except Exception as e:
-                    print(f"警告: 计算指标 '{metric_name}' 时失败: {e}")
+                    print(f"警告: 计算指标 '{metric_name}' (使用 {calculator_name}) 时失败: {e}")
+                    import traceback
+                    traceback.print_exc()
                     results[metric_name] = None
             else:
-                print(f"警告: 未知的归因指标 '{metric_name}'")
+                print(f"警告: 未找到对应的计算器 '{calculator_name}' (原始请求: {metric_name})")
 
         return results
 
     def _compute_loss(self, batch: Dict) -> float:
-        """辅助函数，用于计算给定批次数据的模型损失。"""
         with torch.no_grad():
-            # 创建一个副本以避免修改原始批次
             temp_batch = copy.deepcopy(batch)
-            
-            # 调用模型前向传播
             outputs, loss = self.model(temp_batch)
-            
             loss_val = loss.mean().item()
-            
             if np.isnan(loss_val) or np.isinf(loss_val):
-                return 1e9  # 返回一个较大的数表示无效损失
+                return 1e9
             return loss_val

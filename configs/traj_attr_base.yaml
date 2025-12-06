@@ -14,10 +14,27 @@ ckpt_path: "weights/TrajAttr_ckpt/autobot_train/best_model.ckpt"
 model_name: "${method.model_name}"
 dataset_name: "nuscenes"
 
+# ==========================================
+# [新增] 细粒度评估核心配置
+# ==========================================
+# 模式: 'agent' (传统整车Mask) 或 'feature' (细粒度特征扰动)
+eval_mode: "feature" 
+
+# 指标类型: 'loss' (看NLL Loss变化) 或 'shift' (看轨迹位移距离)
+# 对于 'feature' 模式，强烈推荐使用 'shift'，因为坐标扰动对 Loss 的影响可能不如位移直观
+metric_type: "loss"
+
+# 扰动噪声标准差 (仅在 eval_mode='feature' 时生效)
+# 单位：米。给坐标加 1.0m 的高斯噪声
+noise_std: 1.0
+# 高斯扰动模式：noise  特征恢复：freeze
+perturb_mode: "noise"     #使用冻结模式,此时noise_std: 0.0
+# ==========================================
+
 #是否使用归因指标
 evaluate: True
 # 三个指标方法：['morf', 'lerf', 'sen_n']  ['morf', 'lerf', 'sen_n', 'sparseness', 'complexity']  ['sparseness', 'complexity' ]
-eval_metrics: ['morf', 'lerf', 'sen_n' , 'sparseness', 'complexity']
+eval_metrics: ['morf', 'lerf', 'sen_n', 'sparseness', 'complexity']
 #eval_metrics: 'morf'
 
 # 实验设置
